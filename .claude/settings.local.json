@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"console.log\\(''node ok''\\)\")",
+      "Bash(where node:*)",
+      "Bash(python -c \"import struct, zlib; print\\(''ok''\\)\")"
+    ]
+  }
+}
