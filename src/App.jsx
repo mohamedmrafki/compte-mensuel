@@ -15,6 +15,11 @@ const FRAIS_CATS = ["Essence / Péage","Bureau","Digidom","Assurance","SFR","Sit
 const VEHICULES = ["Classe E","Classe V"];
 const SUPPLEMENT_TYPES = ["Attente","Stop supplémentaire","Parking","Péage","Nuit / Dimanche","Bagages","Autre"];
 
+const PROFILES = [
+  { id: "oumar",   name: "Oumar",   company: "Faiz Transport Paris", color: "#5B9CF6" },
+  { id: "mohamed", name: "Mohamed", company: "AMR Drive",            color: "#C8A45A" },
+];
+
 const INVOICE_STATUSES = [
   { key: "a_envoyer",  label: "À envoyer",      emoji: "📋", color: "#6B748A", bg: "#6B748A18", border: "#6B748A55" },
   { key: "envoyee",    label: "Envoyée",         emoji: "📤", color: "#5B9CF6", bg: "#5B9CF618", border: "#5B9CF655" },
@@ -558,8 +563,27 @@ function ChauffeurSettingsModal({ savedChauffeurs, defaultChauffeur, onSetDefaul
   );
 }
 
+// ── Sélecteur de profil ───────────────────────────────────────────────────────
+function ProfilePicker({ onSelect }) {
+  return (
+    <div style={{ background: C.bg, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20, padding: 24 }}>
+      <div style={{ fontSize: 40 }}>🚗</div>
+      <div style={{ fontSize: 22, fontWeight: 800, color: C.white }}>Choisir un profil</div>
+      <div style={{ fontSize: 14, color: C.muted, marginTop: -8 }}>Sélectionne ton compte</div>
+      {PROFILES.map(p => (
+        <button key={p.id} onClick={() => onSelect(p.id)} style={{ width: "100%", maxWidth: 320, background: C.card, border: `2px solid ${p.color}55`, borderRadius: 16, padding: "20px 24px", cursor: "pointer", textAlign: "left" }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: p.color }}>🧑‍✈️ {p.name}</div>
+          <div style={{ fontSize: 13, color: C.muted, marginTop: 6 }}>{p.company}</div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ── APP PRINCIPAL ─────────────────────────────────────────────────────────────
 export default function App() {
+  const [profile, setProfile] = useState(() => localStorage.getItem("cp_profile") || null);
+
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
@@ -589,14 +613,23 @@ export default function App() {
 
   const mk = monthKey(year, month);
   const savedChauffeurs = chauffeurObjects.map(c => c.name);
+  const profileInfo = PROFILES.find(p => p.id === profile);
+
+  const switchProfile = (p) => {
+    localStorage.setItem("cp_profile", p);
+    setCourses([]); setFrais([]); setSavedCompanies([]); setChauffeurObjects([]);
+    setDefaultChauffeur(""); setRecurringFrais([]); setInvoiceStatuses({}); setLoaded(false);
+    setProfile(p);
+  };
 
   // Chargement de la config (une seule fois)
   useEffect(() => {
+    if (!profile) return;
     (async () => {
       const [companiesRes, chauffeursRes, recurringRes] = await Promise.all([
-        supabase.from("companies").select("*").order("name"),
-        supabase.from("chauffeurs").select("*").order("name"),
-        supabase.from("recurring_frais").select("*").order("created_at"),
+        supabase.from("companies").select("*").eq("profile", profile).order("name"),
+        supabase.from("chauffeurs").select("*").eq("profile", profile).order("name"),
+        supabase.from("recurring_frais").select("*").eq("profile", profile).order("created_at"),
       ]);
       setSavedCompanies(companiesRes.data || []);
       const chData = chauffeursRes.data || [];
@@ -605,16 +638,17 @@ export default function App() {
       if (def) setDefaultChauffeur(def.name);
       setRecurringFrais((recurringRes.data || []).map(recurringFromDb));
     })();
-  }, []);
+  }, [profile]);
 
   // Chargement des données du mois (rechargé à chaque changement de mois)
   useEffect(() => {
+    if (!profile) return;
     setLoaded(false);
     (async () => {
       const [coursesRes, fraisRes, invoiceRes] = await Promise.all([
-        supabase.from("courses").select("*").eq("month_key", mk).order("heure"),
-        supabase.from("frais").select("*").eq("month_key", mk).order("date"),
-        supabase.from("invoice_statuses").select("*").like("id", `${mk}:%`),
+        supabase.from("courses").select("*").eq("month_key", mk).eq("profile", profile).order("heure"),
+        supabase.from("frais").select("*").eq("month_key", mk).eq("profile", profile).order("date"),
+        supabase.from("invoice_statuses").select("*").like("id", `${mk}:%`).eq("profile", profile),
       ]);
       const dbCourses = (coursesRes.data || []).map(courseFromDb);
       const dbFrais = (fraisRes.data || []).map(fraisFromDb);
@@ -627,7 +661,7 @@ export default function App() {
       setInvoiceStatuses(ivs);
       setLoaded(true);
     })();
-  }, [mk]);
+  }, [mk, profile]);
 
   // Application des frais récurrents après chargement du mois
   useEffect(() => {
@@ -659,7 +693,7 @@ export default function App() {
 
   // ── Handlers Courses ────────────────────────────────────────────────────────
   const saveCourse = async (c) => {
-    await supabase.from("courses").upsert(courseToDb(c, mk));
+    await supabase.from("courses").upsert({ ...courseToDb(c, mk), profile });
     setCourses(prev => {
       const list = [...prev];
       const idx = list.findIndex(x => x.id === c.id);
@@ -677,7 +711,7 @@ export default function App() {
 
   // ── Handlers Frais ──────────────────────────────────────────────────────────
   const saveFrais = async (f) => {
-    await supabase.from("frais").upsert(fraisToDb(f, mk));
+    await supabase.from("frais").upsert({ ...fraisToDb(f, mk), profile });
     setFrais(prev => {
       const list = [...prev];
       const idx = list.findIndex(x => x.id === f.id);
@@ -697,12 +731,12 @@ export default function App() {
   const handleSaveCompany = async (nameOrObj) => {
     if (typeof nameOrObj === "string") {
       if (!savedCompanies.some(c => c.name.toLowerCase() === nameOrObj.toLowerCase())) {
-        const company = { ...defCompany(), id: uid(), name: nameOrObj };
+        const company = { ...defCompany(), id: uid(), name: nameOrObj, profile };
         await supabase.from("companies").upsert(company);
         setSavedCompanies(prev => [...prev, company]);
       }
     } else {
-      await supabase.from("companies").upsert(nameOrObj);
+      await supabase.from("companies").upsert({ ...nameOrObj, profile });
       setSavedCompanies(prev => { const idx = prev.findIndex(c => c.id === nameOrObj.id); if (idx >= 0) { const l = [...prev]; l[idx] = nameOrObj; return l; } return [...prev, nameOrObj]; });
     }
     setEditCompany(null);
@@ -717,7 +751,7 @@ export default function App() {
   const handleSaveChauffeur = async (name) => {
     if (!chauffeurObjects.some(c => c.name.toLowerCase() === name.toLowerCase())) {
       const isFirst = chauffeurObjects.length === 0;
-      const newCh = { id: uid(), name, is_default: isFirst };
+      const newCh = { id: uid(), name, is_default: isFirst, profile };
       await supabase.from("chauffeurs").upsert(newCh);
       setChauffeurObjects(prev => [...prev, newCh]);
       if (isFirst) setDefaultChauffeur(name);
@@ -731,7 +765,7 @@ export default function App() {
     if (defaultChauffeur === name) setDefaultChauffeur("");
   };
   const handleSetDefault = async (name) => {
-    const updates = chauffeurObjects.map(c => ({ ...c, is_default: c.name === name }));
+    const updates = chauffeurObjects.map(c => ({ ...c, is_default: c.name === name, profile }));
     await supabase.from("chauffeurs").upsert(updates);
     setChauffeurObjects(updates);
     setDefaultChauffeur(name);
@@ -749,18 +783,18 @@ export default function App() {
         category: r.category, amount: r.amount, notes: r.notes, isRecurring: true,
       }));
       if (toAdd.length === 0) return prev;
-      toAdd.forEach(f => supabase.from("frais").upsert(fraisToDb(f, targetMk)).then(() => {}));
+      toAdd.forEach(f => supabase.from("frais").upsert({ ...fraisToDb(f, targetMk), profile }).then(() => {}));
       return [...prev, ...toAdd].sort((a, b) => a.date.localeCompare(b.date));
     });
   };
 
   const handleSaveRecurring = async (list) => {
-    const { data: existing } = await supabase.from("recurring_frais").select("id");
+    const { data: existing } = await supabase.from("recurring_frais").select("id").eq("profile", profile);
     const existingIds = (existing || []).map(r => r.id);
     const newIds = list.map(r => r.id);
     const toDelete = existingIds.filter(id => !newIds.includes(id));
     if (toDelete.length > 0) await supabase.from("recurring_frais").delete().in("id", toDelete);
-    if (list.length > 0) await supabase.from("recurring_frais").upsert(list.map(recurringToDb));
+    if (list.length > 0) await supabase.from("recurring_frais").upsert(list.map(r => ({ ...recurringToDb(r), profile })));
     setRecurringFrais(list);
     applyRecurringToMonth(mk, year, month, list);
     setShowRecurringModal(false);
@@ -772,7 +806,7 @@ export default function App() {
   // ── Statuts factures ────────────────────────────────────────────────────────
   const setInvoiceStatus = async (companyName, status) => {
     const key = `${mk}:${companyName}`;
-    await supabase.from("invoice_statuses").upsert({ id: key, status, updated_at: new Date().toISOString() });
+    await supabase.from("invoice_statuses").upsert({ id: key, status, updated_at: new Date().toISOString(), profile });
     setInvoiceStatuses(prev => ({ ...prev, [key]: status }));
   };
   const getInvoiceStatus = (companyName) => invoiceStatuses[`${mk}:${companyName}`] || "a_envoyer";
@@ -793,6 +827,8 @@ export default function App() {
   const vIcon = v => v === "Classe E" ? "🚙" : v === "Classe V" ? "🚐" : "🚗";
 
   // ── Rendu ───────────────────────────────────────────────────────────────────
+  if (!profile) return <ProfilePicker onSelect={switchProfile} />;
+
   return (
     <div style={{ background: C.bg, minHeight: "100vh", fontFamily: "'DM Sans','Segoe UI',sans-serif", color: C.text, maxWidth: 480, margin: "0 auto" }}>
       {/* Header */}
@@ -804,6 +840,9 @@ export default function App() {
               <div style={{ fontSize: 20, fontWeight: 800, color: C.white }}>Mes Comptes</div>
               {defaultChauffeur && <button onClick={() => setShowChauffeurSettings(true)} style={{ background: `${C.gold}18`, border: `1px solid ${C.gold}44`, borderRadius: 20, padding: "3px 10px", fontSize: 12, color: C.gold, fontWeight: 600, cursor: "pointer" }}>🧑‍✈️ {defaultChauffeur}</button>}
             </div>
+            <button onClick={() => { localStorage.removeItem("cp_profile"); setProfile(null); }} style={{ background: `${profileInfo?.color || C.blue}18`, border: `1px solid ${profileInfo?.color || C.blue}44`, borderRadius: 20, padding: "2px 10px", fontSize: 11, color: profileInfo?.color || C.blue, fontWeight: 600, cursor: "pointer", marginTop: 4 }}>
+              👤 {profileInfo?.name} · {profileInfo?.company} ↩
+            </button>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <button onClick={prevMonth} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 8, width: 32, height: 32, cursor: "pointer", fontSize: 16 }}>‹</button>
