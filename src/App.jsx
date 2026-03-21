@@ -12,7 +12,7 @@ const C = {
 const MOIS = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
 const LIEUX = ["CDG","ORY","LBG","Gare de l'Est","Gare de Lyon","Gare du Nord","Gare Montparnasse"];
 const FRAIS_CATS = ["Essence / Péage","Bureau","Digidom","Assurance","SFR","Site web","Entretien / Réparation","Nourriture","Autre"];
-const VEHICULES = ["Classe E","Classe V"];
+const VEHICULES = ["Classe E","Classe V","Classe S"];
 const SUPPLEMENT_TYPES = ["Attente","Stop supplémentaire","Parking","Péage","Nuit / Dimanche","Bagages","Autre"];
 
 const PROFILES = [
@@ -315,16 +315,38 @@ function computeChauffeurCost(f) {
 
 function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, savedChauffeurs, onSaveChauffeur, defaultChauffeur }) {
   const [f, setF] = useState(() => initial ? { supplements: [], ...initial } : defCourse(defaultChauffeur));
+  const [tarifType, setTarifType] = useState(() => initial?.prestation === "mad" ? "mad" : null);
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+
+  // Auto-calcul total
   useEffect(() => {
     setF(p => ({ ...p, total: computeTotal(p), chauffeurCost: computeChauffeurCost(p) }));
   }, [f.prestation, f.prixTTC, f.tauxHoraire, f.nbHeures, f.chauffeurFlatRate, f.chauffeurHourlyRate, JSON.stringify(f.supplements)]);
+
+  // Auto-fill prix depuis le tarif de la société
+  useEffect(() => {
+    if (!f.company || !f.vehicule || !tarifType) return;
+    const companyObj = savedCompanies.find(c => c.name.toLowerCase() === f.company.toLowerCase());
+    if (!companyObj?.prices) return;
+    const vp = companyObj.prices[f.vehicule];
+    if (!vp) return;
+    if (tarifType === "aeroport" || tarifType === "paris") {
+      const price = vp[tarifType];
+      if (price) setF(p => ({ ...p, prestation: "transfert", prixTTC: String(price) }));
+    } else if (tarifType === "mad") {
+      const rate = vp.mad;
+      if (rate) setF(p => ({ ...p, prestation: "mad", tauxHoraire: String(rate) }));
+    }
+  }, [f.company, f.vehicule, tarifType]);
+
   const isOtherDriver = f.chauffeur && f.chauffeur !== defaultChauffeur;
-  const companyOk = f.company && savedCompanies.some(c => c.name.toLowerCase() === f.company.trim().toLowerCase());
+  const companyObj = savedCompanies.find(c => c.name.toLowerCase() === (f.company || "").trim().toLowerCase());
+  const companyOk = !!companyObj;
   const chauffeurSaved = savedChauffeurs.some(c => c.toLowerCase() === (f.chauffeur || "").trim().toLowerCase());
   const valid = f.date && Number(f.total) > 0;
   const supTotal = (f.supplements || []).reduce((s, x) => s + Number(x.amount || 0), 0);
-  const vColor = v => v === "Classe E" ? C.blue : C.purple;
+  const vColor = v => v === "Classe E" ? C.blue : v === "Classe V" ? C.purple : C.teal;
+
   return (
     <Modal title={initial ? "Modifier la course" : "Nouvelle course"} onClose={onClose}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -332,22 +354,54 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
           <Input label="Date" type="date" value={f.date} onChange={e => set("date", e.target.value)} style={{ flex: 1 }} />
           <Input label="Heure" type="time" value={f.heure} onChange={e => set("heure", e.target.value)} style={{ flex: 1 }} />
         </div>
+
+        {/* Société en premier */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <input type="checkbox" id="priv" checked={f.isPrivate} onChange={e => { set("isPrivate", e.target.checked); if (e.target.checked) { set("company", ""); setTarifType(null); } }} />
+          <label htmlFor="priv" style={{ color: C.text, fontSize: 14, cursor: "pointer" }}>Course privée – encaissement direct</label>
+        </div>
+        {!f.isPrivate && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <ACInput label="Société / Plateforme" value={f.company} onChange={v => { set("company", v); setTarifType(null); }} suggestions={savedCompanies.map(c => c.name)} placeholder="Nom de la société…" icon="🏢" />
+            {f.company?.trim() && !companyOk && <button onClick={() => onSaveCompany(f.company.trim())} style={{ background: "none", border: "none", color: C.blue, cursor: "pointer", fontSize: 13, textAlign: "left", padding: 0 }}>💾 Mémoriser « {f.company.trim()} »</button>}
+            {companyOk && <div style={{ fontSize: 12, color: C.green }}>✓ Société mémorisée</div>}
+          </div>
+        )}
+
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <ACInput label="Chauffeur" value={f.chauffeur} onChange={v => set("chauffeur", v)} suggestions={savedChauffeurs} placeholder="Nom du chauffeur" icon="🧑‍✈️" />
           {f.chauffeur?.trim() && !chauffeurSaved && <button onClick={() => onSaveChauffeur(f.chauffeur.trim())} style={{ background: "none", border: "none", color: C.blue, cursor: "pointer", fontSize: 13, textAlign: "left", padding: 0 }}>💾 Mémoriser « {f.chauffeur.trim()} »</button>}
           {chauffeurSaved && f.chauffeur?.trim() && <div style={{ fontSize: 12, color: C.green }}>✓ Mémorisé</div>}
         </div>
+
         <Input label="Nom du client" value={f.client} onChange={e => set("client", e.target.value)} placeholder="Ex: M. Dupont" />
+
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <Lbl>Catégorie véhicule</Lbl>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 6 }}>
             {VEHICULES.map(v => (
-              <button key={v} onClick={() => set("vehicule", v)} style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `2px solid ${f.vehicule === v ? vColor(v) : C.border}`, background: f.vehicule === v ? `${vColor(v)}18` : C.surface, color: f.vehicule === v ? vColor(v) : C.muted, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
-                {v === "Classe E" ? "🚙" : "🚐"} {v}
+              <button key={v} onClick={() => set("vehicule", v)} style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `2px solid ${f.vehicule === v ? vColor(v) : C.border}`, background: f.vehicule === v ? `${vColor(v)}18` : C.surface, color: f.vehicule === v ? vColor(v) : C.muted, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>
+                {v === "Classe E" ? "🚙" : v === "Classe V" ? "🚐" : "🚗"} {v.replace("Classe ", "")}
               </button>
             ))}
           </div>
         </div>
+
+        {/* Tarif auto depuis société */}
+        {companyOk && companyObj.prices && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <Lbl>Type de tarif</Lbl>
+            <div style={{ display: "flex", gap: 6 }}>
+              {TARIF_TYPES.map(t => (
+                <button key={t.key} onClick={() => setTarifType(t.key)} style={{ flex: 1, padding: "9px 4px", borderRadius: 10, border: `2px solid ${tarifType === t.key ? C.gold : C.border}`, background: tarifType === t.key ? `${C.gold}18` : C.surface, color: tarifType === t.key ? C.gold : C.muted, fontWeight: 600, fontSize: 11, cursor: "pointer", textAlign: "center" }}>
+                  {t.key === "aeroport" ? "✈️ Aéroport" : t.key === "paris" ? "🗼 Paris" : "⏱ MAD"}
+                </button>
+              ))}
+            </div>
+            {tarifType && <div style={{ fontSize: 11, color: C.green }}>✓ Prix appliqué depuis les tarifs de la société</div>}
+          </div>
+        )}
+
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <Lbl>Type de prestation</Lbl>
           <div style={{ display: "flex", gap: 8 }}>
@@ -356,8 +410,10 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
             ))}
           </div>
         </div>
+
         <ACInput label="Prise en charge" value={f.prise} onChange={v => set("prise", v)} suggestions={LIEUX} placeholder="Adresse ou lieu (CDG, ORY…)" />
         <ACInput label="Dépose" value={f.depose} onChange={v => set("depose", v)} suggestions={LIEUX} placeholder="Adresse ou lieu" />
+
         {f.prestation === "transfert" ? (
           <Input label="Prix de base TTC (€)" type="number" value={f.prixTTC} onChange={e => set("prixTTC", e.target.value)} placeholder="0.00" />
         ) : (
@@ -375,7 +431,9 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
             )}
           </div>
         )}
+
         <SupplementsEditor supplements={f.supplements || []} onChange={sups => set("supplements", sups)} />
+
         {Number(f.total) > 0 && (
           <div style={{ background: `${C.gold}12`, border: `1px solid ${C.gold}44`, borderRadius: 10, padding: "12px 14px" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -395,6 +453,7 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
             </div>
           </div>
         )}
+
         {isOtherDriver && (
           <div style={{ background: `${C.orange}12`, border: `2px solid ${C.orange}55`, borderRadius: 12, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
             <div style={{ fontSize: 12, color: C.orange, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>💰 Tarif payé à {f.chauffeur}</div>
@@ -431,18 +490,8 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
             )}
           </div>
         )}
+
         <Input label="Pourboire (€)" type="number" value={f.tips} onChange={e => set("tips", e.target.value)} placeholder="0" />
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <input type="checkbox" id="priv" checked={f.isPrivate} onChange={e => { set("isPrivate", e.target.checked); if (e.target.checked) set("company", ""); }} />
-          <label htmlFor="priv" style={{ color: C.text, fontSize: 14, cursor: "pointer" }}>Course privée – encaissement direct</label>
-        </div>
-        {!f.isPrivate && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <ACInput label="Société / Plateforme" value={f.company} onChange={v => set("company", v)} suggestions={savedCompanies.map(c => c.name)} placeholder="Nom de la société…" icon="🏢" />
-            {f.company?.trim() && !companyOk && <button onClick={() => onSaveCompany(f.company.trim())} style={{ background: "none", border: "none", color: C.blue, cursor: "pointer", fontSize: 13, textAlign: "left", padding: 0 }}>💾 Mémoriser « {f.company.trim()} »</button>}
-            {companyOk && <div style={{ fontSize: 12, color: C.green }}>✓ Société mémorisée</div>}
-          </div>
-        )}
         <Textarea label="Notes" value={f.notes} onChange={e => set("notes", e.target.value)} placeholder="Informations supplémentaires…" />
         <Btn onClick={() => valid && onSave(f)} style={{ marginTop: 4 }}>{initial ? "Enregistrer" : "Ajouter la course"}</Btn>
         {!valid && <div style={{ fontSize: 12, color: C.muted, textAlign: "center" }}>Date et prix requis</div>}
@@ -518,18 +567,41 @@ function RecurringFraisModal({ recurringFrais, onSave, onClose }) {
 }
 
 // ── Modal Société ─────────────────────────────────────────────────────────────
-const defCompany = () => ({ id: uid(), name: "", adresse: "", email: "", tva: "", siren: "" });
+const defPrices = () => Object.fromEntries(VEHICULES.map(v => [v, { aeroport: "", paris: "", mad: "" }]));
+const defCompany = () => ({ id: uid(), name: "", prices: defPrices() });
+
+const TARIF_TYPES = [
+  { key: "aeroport", label: "Aéroport (CDG/ORY/LBG)" },
+  { key: "paris",    label: "Paris → Paris" },
+  { key: "mad",      label: "Mise à dispo (€/h)" },
+];
+
 function CompanyInfoModal({ initial, onSave, onClose }) {
-  const [f, setF] = useState(initial ? { ...initial } : defCompany());
-  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const [f, setF] = useState(() => {
+    const base = initial ? { ...initial } : defCompany();
+    const prices = { ...defPrices(), ...(base.prices || {}) };
+    VEHICULES.forEach(v => { prices[v] = { aeroport: "", paris: "", mad: "", ...(prices[v] || {}) }; });
+    return { ...base, prices };
+  });
+  const setPrice = (v, t, val) => setF(p => ({ ...p, prices: { ...p.prices, [v]: { ...p.prices[v], [t]: val } } }));
+  const vColor = v => v === "Classe E" ? C.blue : v === "Classe V" ? C.purple : C.teal;
+  const vIcon  = v => v === "Classe E" ? "🚙" : v === "Classe V" ? "🚐" : "🚗";
   return (
     <Modal title={f.name || "Nouvelle société"} onClose={onClose}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <Input label="Nom *" value={f.name} onChange={e => set("name", e.target.value)} placeholder="Nom de la société" />
-        <Textarea label="Adresse" value={f.adresse} onChange={e => set("adresse", e.target.value)} placeholder="12 rue…, 75001 Paris" />
-        <Input label="Email" type="email" value={f.email} onChange={e => set("email", e.target.value)} placeholder="facturation@société.fr" />
-        <Input label="N° TVA" value={f.tva} onChange={e => set("tva", e.target.value)} placeholder="FR00 000000000" />
-        <Input label="SIREN" value={f.siren} onChange={e => set("siren", e.target.value)} placeholder="000 000 000" />
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <Input label="Nom de la société *" value={f.name} onChange={e => setF(p => ({ ...p, name: e.target.value }))} placeholder="Ex: Foobar SAS" />
+        {VEHICULES.map(v => (
+          <div key={v} style={{ background: C.surface, border: `1px solid ${vColor(v)}33`, borderRadius: 12, padding: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: vColor(v), textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>{vIcon(v)} {v}</div>
+            {TARIF_TYPES.map(t => (
+              <div key={t.key} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                <div style={{ flex: 1, fontSize: 13, color: C.muted }}>{t.label}</div>
+                <input type="number" value={f.prices[v]?.[t.key] || ""} onChange={e => setPrice(v, t.key, e.target.value)} placeholder="—" style={{ ...iBase, width: 90, textAlign: "right" }} />
+                <span style={{ fontSize: 12, color: C.muted, minWidth: 20 }}>{t.key === "mad" ? "€/h" : "€"}</span>
+              </div>
+            ))}
+          </div>
+        ))}
         <Btn onClick={() => f.name.trim() && onSave(f)}>Enregistrer</Btn>
       </div>
     </Modal>
@@ -823,7 +895,7 @@ export default function App() {
     setTimeout(() => w.print(), 500);
   };
 
-  const vColor = v => v === "Classe E" ? C.blue : v === "Classe V" ? C.purple : C.muted;
+  const vColor = v => v === "Classe E" ? C.blue : v === "Classe V" ? C.purple : C.teal;
   const vIcon = v => v === "Classe E" ? "🚙" : v === "Classe V" ? "🚐" : "🚗";
 
   // ── Rendu ───────────────────────────────────────────────────────────────────
