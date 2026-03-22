@@ -568,7 +568,7 @@ function RecurringFraisModal({ recurringFrais, onSave, onClose }) {
 
 // ── Modal Société ─────────────────────────────────────────────────────────────
 const defPrices = () => Object.fromEntries(VEHICULES.map(v => [v, { aeroport: "", paris: "", mad: "" }]));
-const defCompany = () => ({ id: uid(), name: "", prices: defPrices() });
+const defCompany = (name = "") => ({ id: uid(), name, prices: defPrices() });
 
 const TARIF_TYPES = [
   { key: "aeroport", label: "Aéroport (CDG/ORY/LBG)" },
@@ -694,21 +694,31 @@ export default function App() {
     setProfile(p);
   };
 
+  const [dbError, setDbError] = useState(null);
+
   // Chargement de la config (une seule fois)
   useEffect(() => {
     if (!profile) return;
     (async () => {
-      const [companiesRes, chauffeursRes, recurringRes] = await Promise.all([
-        supabase.from("companies").select("*").eq("profile", profile).order("name"),
-        supabase.from("chauffeurs").select("*").eq("profile", profile).order("name"),
-        supabase.from("recurring_frais").select("*").eq("profile", profile).order("created_at"),
-      ]);
-      setSavedCompanies(companiesRes.data || []);
-      const chData = chauffeursRes.data || [];
-      setChauffeurObjects(chData);
-      const def = chData.find(c => c.is_default);
-      if (def) setDefaultChauffeur(def.name);
-      setRecurringFrais((recurringRes.data || []).map(recurringFromDb));
+      try {
+        const [companiesRes, chauffeursRes, recurringRes] = await Promise.all([
+          supabase.from("companies").select("*").eq("profile", profile).order("name"),
+          supabase.from("chauffeurs").select("*").eq("profile", profile).order("name"),
+          supabase.from("recurring_frais").select("*").eq("profile", profile).order("created_at"),
+        ]);
+        if (companiesRes.error) throw companiesRes.error;
+        if (chauffeursRes.error) throw chauffeursRes.error;
+        if (recurringRes.error) throw recurringRes.error;
+        setSavedCompanies(companiesRes.data || []);
+        const chData = chauffeursRes.data || [];
+        setChauffeurObjects(chData);
+        const def = chData.find(c => c.is_default);
+        if (def) setDefaultChauffeur(def.name);
+        setRecurringFrais((recurringRes.data || []).map(recurringFromDb));
+        setDbError(null);
+      } catch (e) {
+        setDbError("Erreur de connexion à la base de données. Vérifie ta connexion internet.");
+      }
     })();
   }, [profile]);
 
@@ -717,21 +727,29 @@ export default function App() {
     if (!profile) return;
     setLoaded(false);
     (async () => {
-      const [coursesRes, fraisRes, invoiceRes] = await Promise.all([
-        supabase.from("courses").select("*").eq("month_key", mk).eq("profile", profile).order("heure"),
-        supabase.from("frais").select("*").eq("month_key", mk).eq("profile", profile).order("date"),
-        supabase.from("invoice_statuses").select("*").like("id", `${mk}:%`).eq("profile", profile),
-      ]);
-      const dbCourses = (coursesRes.data || []).map(courseFromDb);
-      const dbFrais = (fraisRes.data || []).map(fraisFromDb);
-      dbCourses.sort((a, b) => (a.heure || "99:99").localeCompare(b.heure || "99:99") || a.date.localeCompare(b.date));
-      dbFrais.sort((a, b) => a.date.localeCompare(b.date));
-      setCourses(dbCourses);
-      setFrais(dbFrais);
-      const ivs = {};
-      (invoiceRes.data || []).forEach(s => { ivs[s.id] = s.status; });
-      setInvoiceStatuses(ivs);
-      setLoaded(true);
+      try {
+        const [coursesRes, fraisRes, invoiceRes] = await Promise.all([
+          supabase.from("courses").select("*").eq("month_key", mk).eq("profile", profile).order("heure"),
+          supabase.from("frais").select("*").eq("month_key", mk).eq("profile", profile).order("date"),
+          supabase.from("invoice_statuses").select("*").like("id", `${mk}:%`).eq("profile", profile),
+        ]);
+        if (coursesRes.error) throw coursesRes.error;
+        if (fraisRes.error) throw fraisRes.error;
+        const dbCourses = (coursesRes.data || []).map(courseFromDb);
+        const dbFrais = (fraisRes.data || []).map(fraisFromDb);
+        dbCourses.sort((a, b) => (a.heure || "99:99").localeCompare(b.heure || "99:99") || a.date.localeCompare(b.date));
+        dbFrais.sort((a, b) => a.date.localeCompare(b.date));
+        setCourses(dbCourses);
+        setFrais(dbFrais);
+        const ivs = {};
+        (invoiceRes.data || []).forEach(s => { ivs[s.id] = s.status; });
+        setInvoiceStatuses(ivs);
+        setLoaded(true);
+        setDbError(null);
+      } catch (e) {
+        setDbError("Erreur lors du chargement des données. Vérifie ta connexion.");
+        setLoaded(true);
+      }
     })();
   }, [mk, profile]);
 
@@ -803,7 +821,7 @@ export default function App() {
   const handleSaveCompany = async (nameOrObj) => {
     if (typeof nameOrObj === "string") {
       if (!savedCompanies.some(c => c.name.toLowerCase() === nameOrObj.toLowerCase())) {
-        const company = { ...defCompany(), id: uid(), name: nameOrObj, profile };
+        const company = { ...defCompany(nameOrObj), profile };
         await supabase.from("companies").upsert(company);
         setSavedCompanies(prev => [...prev, company]);
       }
@@ -931,6 +949,13 @@ export default function App() {
           ))}
         </div>
       </div>
+
+      {dbError && (
+        <div style={{ background: `${C.red}18`, border: `1px solid ${C.red}55`, borderRadius: 10, margin: "8px 16px", padding: "10px 14px", fontSize: 13, color: C.red, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span>⚠️ {dbError}</span>
+          <button onClick={() => setDbError(null)} style={{ background: "none", border: "none", color: C.red, cursor: "pointer", fontSize: 18, lineHeight: 1 }}>✕</button>
+        </div>
+      )}
 
       <div style={{ padding: 16 }}>
         {!loaded && tab !== "dashboard" ? (
@@ -1220,7 +1245,7 @@ export default function App() {
                       </div>
                       <div style={{ marginTop: 10 }}>
                         {info ? <Btn small variant="ghost" onClick={() => setEditCompany(info)} style={{ color: C.muted }}>✏️ Infos</Btn>
-                          : <Btn small variant="ghost" onClick={() => setEditCompany({ ...defCompany(), id: uid(), name })} style={{ color: C.blue }}>+ Infos de facturation</Btn>}
+                          : <Btn small variant="ghost" onClick={() => setEditCompany(defCompany(name))} style={{ color: C.blue }}>+ Infos de facturation</Btn>}
                       </div>
                     </Card>
                   );
@@ -1228,7 +1253,7 @@ export default function App() {
                 <div style={{ marginTop: 6 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: C.muted }}>Sociétés mémorisées ({savedCompanies.length})</div>
-                    <Btn small onClick={() => setEditCompany({ ...defCompany(), id: uid() })}>+ Ajouter</Btn>
+                    <Btn small onClick={() => setEditCompany(defCompany())}>+ Ajouter</Btn>
                   </div>
                   {savedCompanies.length === 0 && <div style={{ color: C.muted, fontSize: 13, textAlign: "center", padding: "16px 0" }}>Aucune société mémorisée</div>}
                   {savedCompanies.map(c => (
