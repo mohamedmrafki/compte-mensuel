@@ -695,8 +695,6 @@ export default function App() {
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem("pin_ok") === "1");
   const [profile, setProfile] = useState(() => localStorage.getItem("cp_profile") || null);
 
-  if (!unlocked) return <PinLock onUnlock={() => setUnlocked(true)} />;
-
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
@@ -958,6 +956,7 @@ export default function App() {
   const vIcon = v => v === "Classe E" ? "🚙" : v === "Classe V" ? "🚐" : "🚗";
 
   // ── Rendu ───────────────────────────────────────────────────────────────────
+  if (!unlocked) return <PinLock onUnlock={() => setUnlocked(true)} />;
   if (!profile) return <ProfilePicker onSelect={switchProfile} />;
 
   return (
