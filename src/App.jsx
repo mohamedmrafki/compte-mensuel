@@ -115,6 +115,26 @@ const Btn = ({ children, onClick, variant = "primary", style, small }) => {
   const col = variant === "ghost" ? C.muted : C.bg;
   return <button onClick={onClick} style={{ background: bg, color: col, border: "none", borderRadius: 8, cursor: "pointer", padding: small ? "6px 12px" : "10px 18px", fontSize: small ? 12 : 14, fontWeight: 600, ...style }} onMouseOver={e => e.currentTarget.style.opacity = .8} onMouseOut={e => e.currentTarget.style.opacity = 1}>{children}</button>;
 };
+
+function VoiceNoteBtn({ onText }) {
+  const [listening, setListening] = useState(false);
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return null;
+  const start = () => {
+    const rec = new SR();
+    rec.lang = "fr-FR"; rec.interimResults = false;
+    rec.onstart = () => setListening(true);
+    rec.onend = () => setListening(false);
+    rec.onresult = e => onText(e.results[0][0].transcript);
+    rec.onerror = () => setListening(false);
+    rec.start();
+  };
+  return (
+    <button type="button" onClick={start} style={{ background: listening ? `${C.red}30` : `${C.teal}18`, border: `1px solid ${listening ? C.red : C.teal}55`, color: listening ? C.red : C.teal, borderRadius: 8, padding: "3px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+      {listening ? "🔴 Écoute..." : "🎙 Voix"}
+    </button>
+  );
+}
 const Modal = ({ title, onClose, children }) => (
   <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.85)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={e => e.target === e.currentTarget && onClose()}>
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, maxHeight: "92vh", overflowY: "auto", padding: 20 }}>
@@ -492,7 +512,13 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
         )}
 
         <Input label="Pourboire (€)" type="number" value={f.tips} onChange={e => set("tips", e.target.value)} placeholder="0" />
-        <Textarea label="Notes" value={f.notes} onChange={e => set("notes", e.target.value)} placeholder="Informations supplémentaires…" />
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <Lbl>Notes</Lbl>
+            <VoiceNoteBtn onText={t => set("notes", (f.notes ? f.notes + " " : "") + t)} />
+          </div>
+          <textarea value={f.notes} onChange={e => set("notes", e.target.value)} placeholder="Informations supplémentaires…" style={{ ...iBase, resize: "vertical", minHeight: 56 }} />
+        </div>
         <Btn onClick={() => valid && onSave(f)} style={{ marginTop: 4 }}>{initial ? "Enregistrer" : "Ajouter la course"}</Btn>
         {!valid && <div style={{ fontSize: 12, color: C.muted, textAlign: "center" }}>Date et prix requis</div>}
       </div>
@@ -721,6 +747,12 @@ export default function App() {
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   const [showRecurringModal, setShowRecurringModal] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterChauffeur, setFilterChauffeur] = useState("");
+  const [prevMonthCA, setPrevMonthCA] = useState(null);
+  const [objectifCA, setObjectifCA] = useState(() => Number(localStorage.getItem(`objectif_${profile || ""}`) || 0));
+  const [showObjectifInput, setShowObjectifInput] = useState(false);
+  const [objectifInputVal, setObjectifInputVal] = useState("");
 
   const mk = monthKey(year, month);
   const savedChauffeurs = chauffeurObjects.map(c => c.name);
@@ -764,13 +796,15 @@ export default function App() {
   // Chargement des données du mois (rechargé à chaque changement de mois)
   useEffect(() => {
     if (!profile) return;
-    setLoaded(false);
+    setLoaded(false); setPrevMonthCA(null);
     (async () => {
       try {
-        const [coursesRes, fraisRes, invoiceRes] = await Promise.all([
+        const prevMk = month === 0 ? `${year - 1}-12` : `${year}-${String(month).padStart(2, "0")}`;
+        const [coursesRes, fraisRes, invoiceRes, prevRes] = await Promise.all([
           supabase.from("courses").select("*").eq("month_key", mk).eq("profile", profile).order("heure"),
           supabase.from("frais").select("*").eq("month_key", mk).eq("profile", profile).order("date"),
           supabase.from("invoice_statuses").select("*").like("id", `${mk}:%`).eq("profile", profile),
+          supabase.from("courses").select("total").eq("month_key", prevMk).eq("profile", profile),
         ]);
         if (coursesRes.error) throw coursesRes.error;
         if (fraisRes.error) throw fraisRes.error;
@@ -783,6 +817,7 @@ export default function App() {
         const ivs = {};
         (invoiceRes.data || []).forEach(s => { ivs[s.id] = s.status; });
         setInvoiceStatuses(ivs);
+        setPrevMonthCA((prevRes.data || []).reduce((s, r) => s + Number(r.total || 0), 0));
         setLoaded(true);
         setDbError(null);
       } catch (e) {
@@ -812,6 +847,16 @@ export default function App() {
   const privateCA = mc.filter(c => c.isPrivate).reduce((s, c) => s + Number(c.total || 0), 0);
   const byVehicle = {};
   mc.forEach(c => { const v = c.vehicule || "N/A"; if (!byVehicle[v]) byVehicle[v] = { trips: 0, ca: 0 }; byVehicle[v].trips++; byVehicle[v].ca += Number(c.total || 0); });
+  const todayStr = today();
+  const todayCA = mc.filter(c => c.date === todayStr).reduce((s, c) => s + Number(c.total || 0), 0);
+  const todayCount = mc.filter(c => c.date === todayStr).length;
+  const uniqueDriversInMonth = [...new Set(mc.map(c => c.chauffeur || defaultChauffeur).filter(Boolean))];
+  const filteredCourses = mc.filter(c => {
+    const q = searchQuery.toLowerCase();
+    const matchSearch = !q || (c.client || "").toLowerCase().includes(q) || (c.company || "").toLowerCase().includes(q) || new Date(c.date).toLocaleDateString("fr-FR").includes(q);
+    const matchDriver = !filterChauffeur || (filterChauffeur === (c.chauffeur || defaultChauffeur));
+    return matchSearch && matchDriver;
+  });
   const byChauffeur = {};
   mc.filter(c => c.chauffeur && c.chauffeur !== defaultChauffeur && Number(c.chauffeurCost) > 0).forEach(c => {
     if (!byChauffeur[c.chauffeur]) byChauffeur[c.chauffeur] = { trips: [], cost: 0, ca: 0 };
@@ -836,6 +881,24 @@ export default function App() {
     if (!window.confirm("Supprimer ?")) return;
     await supabase.from("courses").delete().eq("id", id);
     setCourses(prev => prev.filter(c => c.id !== id));
+  };
+  const duplicateCourse = (c) => {
+    setEditCourse({ ...c, id: uid(), date: today(), heure: "" });
+  };
+  const exportCSV = () => {
+    const headers = ["Date","Heure","Client","Société","Chauffeur","Véhicule","Prestation","Prise","Dépose","Total TTC","Pourboire","Notes"];
+    const rows = mc.map(c => [c.date, c.heure, c.client, c.isPrivate ? "Privé" : c.company, c.chauffeur, c.vehicule, c.prestation === "mad" ? "MAD" : "Transfert", c.prise, c.depose, c.total, c.tips, c.notes].map(v => `"${String(v || "").replace(/"/g, '""')}"`).join(","));
+    const csv = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `courses_${mk}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  };
+  const saveObjectif = (val) => {
+    const n = Number(val) || 0;
+    setObjectifCA(n);
+    localStorage.setItem(`objectif_${profile}`, String(n));
+    setShowObjectifInput(false);
   };
 
   // ── Handlers Frais ──────────────────────────────────────────────────────────
@@ -1010,10 +1073,28 @@ export default function App() {
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ fontSize: 13, color: C.muted, fontWeight: 600, textTransform: "capitalize" }}>{monthLabel(year, month)}</div>
-                  <Btn small onClick={exportPDF} style={{ background: C.surface, color: C.text, border: `1px solid ${C.border}` }}>📄 PDF</Btn>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <Btn small onClick={exportCSV} style={{ background: C.surface, color: C.teal, border: `1px solid ${C.teal}44` }}>📊 CSV</Btn>
+                    <Btn small onClick={exportPDF} style={{ background: C.surface, color: C.text, border: `1px solid ${C.border}` }}>📄 PDF</Btn>
+                  </div>
                 </div>
+                {todayCount > 0 && (
+                  <div style={{ background: `${C.gold}10`, border: `1px solid ${C.gold}33`, borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div><div style={{ fontSize: 11, color: C.goldDim, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Aujourd'hui</div><div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>{todayCount} course{todayCount > 1 ? "s" : ""}</div></div>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: C.gold, fontFamily: "monospace" }}>{fmt(todayCA)}</div>
+                  </div>
+                )}
                 <div style={{ display: "flex", gap: 10 }}>
-                  <Stat label="CA Brut" value={fmt(totalCA)} color={C.gold} sub={`${mc.length} course${mc.length > 1 ? "s" : ""}`} />
+                  <Card style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>CA Brut</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: C.gold, fontFamily: "monospace" }}>{fmt(totalCA)}</div>
+                    <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>{mc.length} course{mc.length > 1 ? "s" : ""}</div>
+                    {prevMonthCA !== null && totalCA > 0 && (
+                      <div style={{ fontSize: 11, marginTop: 4, color: totalCA >= prevMonthCA ? C.green : C.red, fontWeight: 600 }}>
+                        {totalCA >= prevMonthCA ? "▲" : "▼"} {prevMonthCA > 0 ? `${Math.round(Math.abs(totalCA - prevMonthCA) / prevMonthCA * 100)}% vs mois préc.` : "Nouveau mois"}
+                      </div>
+                    )}
+                  </Card>
                   <Stat label="Pourboires" value={fmt(totalTips)} color={C.green} />
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
@@ -1023,6 +1104,32 @@ export default function App() {
                 <Card style={{ borderColor: net >= 0 ? `${C.green}44` : `${C.red}44` }}>
                   <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Net (CA − Frais − Chauffeurs)</div>
                   <div style={{ fontSize: 28, fontWeight: 800, color: net >= 0 ? C.green : C.red, fontFamily: "monospace" }}>{fmt(net)}</div>
+                </Card>
+                <Card>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: 1 }}>Objectif mensuel</div>
+                    <button onClick={() => { setObjectifInputVal(String(objectifCA || "")); setShowObjectifInput(v => !v); }} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 18, lineHeight: 1 }}>✏️</button>
+                  </div>
+                  {showObjectifInput && (
+                    <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                      <input type="number" value={objectifInputVal} onChange={e => setObjectifInputVal(e.target.value)} placeholder="ex: 5000" style={{ ...iBase, flex: 1 }} />
+                      <Btn small onClick={() => saveObjectif(objectifInputVal)}>OK</Btn>
+                    </div>
+                  )}
+                  {objectifCA > 0 ? (
+                    <>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 6 }}>
+                        <span style={{ color: C.muted }}>{fmt(totalCA)} / {fmt(objectifCA)}</span>
+                        <span style={{ fontWeight: 700, color: totalCA >= objectifCA ? C.green : C.gold }}>{Math.min(100, Math.round(totalCA / objectifCA * 100))}%</span>
+                      </div>
+                      <div style={{ background: C.surface, borderRadius: 6, height: 8, overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: `${Math.min(100, totalCA / objectifCA * 100)}%`, background: totalCA >= objectifCA ? C.green : C.gold, borderRadius: 6, transition: "width 0.4s" }} />
+                      </div>
+                      {totalCA >= objectifCA && <div style={{ fontSize: 12, color: C.green, marginTop: 6, fontWeight: 700 }}>🎉 Objectif atteint !</div>}
+                    </>
+                  ) : (
+                    <div style={{ fontSize: 13, color: C.muted }}>Définir un objectif de CA pour voir ta progression.</div>
+                  )}
                 </Card>
                 {Object.keys(byVehicle).length > 0 && (
                   <Card>
@@ -1059,11 +1166,19 @@ export default function App() {
             {tab === "courses" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div><span style={{ fontWeight: 700 }}>{mc.length} course{mc.length > 1 ? "s" : ""}</span><span style={{ color: C.gold, fontWeight: 700, fontFamily: "monospace", marginLeft: 8 }}>{fmt(totalCA)}</span></div>
+                  <div><span style={{ fontWeight: 700 }}>{filteredCourses.length} course{filteredCourses.length > 1 ? "s" : ""}</span><span style={{ color: C.gold, fontWeight: 700, fontFamily: "monospace", marginLeft: 8 }}>{fmt(filteredCourses.reduce((s,c) => s + Number(c.total||0), 0))}</span></div>
                   <Btn onClick={() => setShowCourseModal(true)} small>+ Course</Btn>
                 </div>
+                <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="🔍 Rechercher client, société, date…" style={{ ...iBase, fontSize: 13 }} />
+                {uniqueDriversInMonth.length > 1 && (
+                  <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
+                    <button onClick={() => setFilterChauffeur("")} style={{ padding: "4px 12px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, background: !filterChauffeur ? C.gold : C.surface, color: !filterChauffeur ? C.bg : C.muted, whiteSpace: "nowrap" }}>Tous</button>
+                    {uniqueDriversInMonth.map(d => <button key={d} onClick={() => setFilterChauffeur(filterChauffeur === d ? "" : d)} style={{ padding: "4px 12px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, background: filterChauffeur === d ? C.gold : C.surface, color: filterChauffeur === d ? C.bg : C.muted, whiteSpace: "nowrap" }}>🧑‍✈️ {d}</button>)}
+                  </div>
+                )}
                 {mc.length === 0 && <div style={{ textAlign: "center", padding: 40, color: C.muted }}><div style={{ fontSize: 40 }}>🚕</div><div style={{ marginTop: 8 }}>Aucune course ce mois</div></div>}
-                {mc.map(c => {
+                {filteredCourses.length === 0 && mc.length > 0 && <div style={{ textAlign: "center", padding: 24, color: C.muted }}>Aucun résultat pour « {searchQuery} »</div>}
+                {filteredCourses.map(c => {
                   const sups = c.supplements || [];
                   const supSum = sups.reduce((s, x) => s + Number(x.amount || 0), 0);
                   return (
@@ -1088,7 +1203,7 @@ export default function App() {
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, marginLeft: 10 }}>
                           <div style={{ fontSize: 18, fontWeight: 700, color: C.gold, fontFamily: "monospace" }}>{fmt(c.total)}</div>
-                          <div style={{ display: "flex", gap: 6 }}><Btn small variant="ghost" onClick={() => setEditCourse(c)}>✏️</Btn><Btn small variant="danger" onClick={() => deleteCourse(c.id)}>🗑</Btn></div>
+                          <div style={{ display: "flex", gap: 6 }}><Btn small variant="ghost" onClick={() => setEditCourse(c)}>✏️</Btn><Btn small variant="ghost" onClick={() => duplicateCourse(c)} style={{ color: C.teal }}>📋</Btn><Btn small variant="danger" onClick={() => deleteCourse(c.id)}>🗑</Btn></div>
                         </div>
                       </div>
                     </Card>
