@@ -3,11 +3,12 @@ import { supabase } from "./supabase.js";
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 const C = {
-  bg: "#08090D", surface: "#10121A", card: "#161B26", border: "#1E2535",
-  gold: "#C8A45A", goldDim: "#8A6E38", green: "#3DD68C", red: "#F26B6B",
-  blue: "#5B9CF6", purple: "#9B7EF5", orange: "#FB923C", teal: "#2DD4BF",
-  text: "#E8EAF0", muted: "#6B748A", white: "#FFFFFF",
+  bg: "#05060A", surface: "#0D0F18", card: "#111520", border: "#1C2235", border2: "#283248",
+  gold: "#D4A853", goldBright: "#F0C870", goldDim: "#7A5F2E", goldGlow: "rgba(212,168,83,0.12)",
+  green: "#2ECC8A", red: "#E85555", blue: "#4F8EF7", purple: "#9B7EF5", orange: "#F5923C", teal: "#26C4B0",
+  text: "#EDF0F7", muted: "#576075", white: "#FFFFFF",
 };
+const FONT = { display: "'Syne', sans-serif", body: "'Jost', sans-serif" };
 
 const MOIS = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
 const LIEUX = ["CDG","ORY","LBG","Gare de l'Est","Gare de Lyon","Gare du Nord","Gare Montparnasse"];
@@ -94,26 +95,38 @@ function recurringFromDb(r) {
 
 // ── Composants UI (identiques à l'original) ───────────────────────────────────
 const Pill = ({ label, active, onClick }) => (
-  <button onClick={onClick} style={{ padding: "6px 14px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600, background: active ? C.gold : C.surface, color: active ? C.bg : C.muted, whiteSpace: "nowrap" }}>{label}</button>
+  <button onClick={onClick} style={{ padding: "6px 16px", borderRadius: 20, border: active ? `1px solid ${C.gold}55` : `1px solid transparent`, cursor: "pointer", fontSize: 13, fontWeight: 600, background: active ? C.goldGlow : C.surface, color: active ? C.gold : C.muted, whiteSpace: "nowrap", transition: "all 0.18s ease", boxShadow: active ? `0 0 14px ${C.gold}20` : "none", fontFamily: FONT.body }}>{label}</button>
 );
 const Card = ({ children, style }) => (
-  <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, ...style }}>{children}</div>
+  <div style={{ background: `linear-gradient(145deg,${C.card} 0%,rgba(14,16,26,0.95) 100%)`, border: `1px solid ${C.border}`, borderRadius: 16, padding: 16, transition: "border-color 0.2s,box-shadow 0.2s,transform 0.2s", ...style }}
+    onMouseEnter={e => { e.currentTarget.style.borderColor = style?.borderColor || C.border2; e.currentTarget.style.boxShadow = "0 6px 28px rgba(0,0,0,0.35)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+    onMouseLeave={e => { e.currentTarget.style.borderColor = style?.borderColor || C.border; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.transform = "translateY(0)"; }}
+  >{children}</div>
 );
 const Stat = ({ label, value, color = C.text, sub }) => (
-  <Card style={{ flex: 1, minWidth: 0 }}>
-    <div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>{label}</div>
-    <div style={{ fontSize: 20, fontWeight: 700, color, fontFamily: "monospace" }}>{value}</div>
+  <div style={{ flex: 1, minWidth: 0, background: `linear-gradient(145deg,${C.card},rgba(14,16,26,0.95))`, border: `1px solid ${C.border}`, borderTop: `2px solid ${color}`, borderRadius: 16, padding: 16, transition: "box-shadow 0.2s,transform 0.2s" }}
+    onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 6px 28px rgba(0,0,0,0.35)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+    onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.transform = "translateY(0)"; }}>
+    <div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 4, fontWeight: 600 }}>{label}</div>
+    <div style={{ fontSize: 20, fontWeight: 700, color, fontFamily: "monospace", fontVariantNumeric: "tabular-nums" }}>{value}</div>
     {sub && <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>{sub}</div>}
-  </Card>
+  </div>
 );
-const Lbl = ({ children }) => <label style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>{children}</label>;
-const iBase = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, padding: "8px 12px", fontSize: 14, outline: "none", width: "100%", boxSizing: "border-box" };
-const Input = ({ label, ...p }) => (<div style={{ display: "flex", flexDirection: "column", gap: 4 }}>{label && <Lbl>{label}</Lbl>}<input {...p} style={{ ...iBase, ...p.style }} /></div>);
-const Textarea = ({ label, ...p }) => (<div style={{ display: "flex", flexDirection: "column", gap: 4 }}>{label && <Lbl>{label}</Lbl>}<textarea {...p} style={{ ...iBase, resize: "vertical", minHeight: 56, ...p.style }} /></div>);
+const Lbl = ({ children }) => <label style={{ fontSize: 12, color: C.muted, fontWeight: 600, letterSpacing: "0.04em" }}>{children}</label>;
+const iBase = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, padding: "9px 13px", fontSize: 14, outline: "none", width: "100%", boxSizing: "border-box", transition: "border-color 0.18s", fontFamily: FONT.body };
+const Input = ({ label, ...p }) => (<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{label && <Lbl>{label}</Lbl>}<input {...p} style={{ ...iBase, ...p.style }} onFocus={e => e.currentTarget.style.borderColor = C.gold} onBlur={e => e.currentTarget.style.borderColor = C.border} /></div>);
+const Textarea = ({ label, ...p }) => (<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{label && <Lbl>{label}</Lbl>}<textarea {...p} style={{ ...iBase, resize: "vertical", minHeight: 60, ...p.style }} onFocus={e => e.currentTarget.style.borderColor = C.gold} onBlur={e => e.currentTarget.style.borderColor = C.border} /></div>);
 const Btn = ({ children, onClick, variant = "primary", style, small }) => {
-  const bg = variant === "primary" ? C.gold : variant === "danger" ? C.red : C.surface;
+  const isPrimary = variant === "primary";
+  const bg = isPrimary ? `linear-gradient(135deg,${C.gold} 0%,${C.goldBright} 100%)` : variant === "danger" ? C.red : C.surface;
   const col = variant === "ghost" ? C.muted : C.bg;
-  return <button onClick={onClick} style={{ background: bg, color: col, border: "none", borderRadius: 8, cursor: "pointer", padding: small ? "6px 12px" : "10px 18px", fontSize: small ? 12 : 14, fontWeight: 600, ...style }} onMouseOver={e => e.currentTarget.style.opacity = .8} onMouseOut={e => e.currentTarget.style.opacity = 1}>{children}</button>;
+  const shadow = isPrimary ? `0 4px 16px ${C.gold}35` : "none";
+  return <button onClick={onClick} style={{ background: bg, color: col, border: variant === "ghost" ? `1px solid ${C.border}` : "none", borderRadius: 10, cursor: "pointer", padding: small ? "6px 13px" : "10px 20px", fontSize: small ? 12 : 14, fontWeight: 600, boxShadow: shadow, transition: "opacity 0.15s,transform 0.12s,box-shadow 0.15s", fontFamily: FONT.body, ...style }}
+    onMouseEnter={e => { e.currentTarget.style.opacity = "0.88"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+    onMouseLeave={e => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.transform = "translateY(0)"; }}
+    onMouseDown={e => e.currentTarget.style.transform = "scale(0.97)"}
+    onMouseUp={e => e.currentTarget.style.transform = "translateY(-1px)"}
+  >{children}</button>;
 };
 
 function VoiceNoteBtn({ onText }) {
@@ -136,11 +149,11 @@ function VoiceNoteBtn({ onText }) {
   );
 }
 const Modal = ({ title, onClose, children }) => (
-  <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.85)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={e => e.target === e.currentTarget && onClose()}>
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, maxHeight: "92vh", overflowY: "auto", padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
-        <span style={{ fontSize: 17, fontWeight: 700, color: C.text }}>{title}</span>
-        <button onClick={onClose} style={{ background: "none", border: "none", color: C.muted, fontSize: 22, cursor: "pointer" }}>✕</button>
+  <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.88)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center", backdropFilter: "blur(4px)" }} onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="slide-up" style={{ background: `linear-gradient(160deg,${C.card} 0%,${C.surface} 100%)`, border: `1px solid ${C.border2}`, borderRadius: "22px 22px 0 0", width: "100%", maxWidth: 480, maxHeight: "92vh", overflowY: "auto", padding: 22 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <span style={{ fontSize: 17, fontWeight: 700, color: C.text, fontFamily: FONT.display }}>{title}</span>
+        <button onClick={onClose} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted, fontSize: 16, cursor: "pointer", borderRadius: 8, width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
       </div>
       {children}
     </div>
@@ -678,21 +691,27 @@ function PinLock({ onUnlock }) {
   };
 
   return (
-    <div style={{ background: C.bg, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 32, padding: 24 }}>
-      <div style={{ fontSize: 40 }}>🔒</div>
-      <div style={{ fontSize: 20, fontWeight: 800, color: C.white }}>Code d'accès</div>
-      <div style={{ display: "flex", gap: 12 }}>
+    <div style={{ background: `radial-gradient(ellipse 80% 40% at 50% -5%, ${C.goldGlow} 0%, transparent 60%), ${C.bg}`, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 36, padding: 32, fontFamily: FONT.body }}>
+      <div className="fade-up" style={{ textAlign: "center" }}>
+        <div style={{ width: 68, height: 68, borderRadius: "50%", background: `linear-gradient(135deg,${C.goldDim}25,${C.gold}15)`, border: `1px solid ${C.gold}35`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, margin: "0 auto 18px", boxShadow: `0 0 40px ${C.gold}15` }}>🔐</div>
+        <div style={{ fontFamily: FONT.display, fontSize: 24, fontWeight: 800, color: C.text, letterSpacing: "-0.02em" }}>Mes Comptes</div>
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 5, letterSpacing: "0.12em", textTransform: "uppercase" }}>Entrez votre code d'accès</div>
+      </div>
+      <div className={error ? "shake" : "fade-in"} style={{ display: "flex", gap: 16 }}>
         {Array.from({ length: PIN_CODE.length }).map((_, i) => (
-          <div key={i} style={{ width: 16, height: 16, borderRadius: "50%", background: i < input.length ? (error ? C.red : C.gold) : C.border, transition: "background 0.15s" }} />
+          <div key={i} className={i < input.length ? "dot-pop" : ""} style={{ width: 13, height: 13, borderRadius: "50%", background: i < input.length ? (error ? C.red : C.gold) : "transparent", border: `2px solid ${i < input.length ? (error ? C.red : C.gold) : C.border2}`, transition: "border-color 0.15s", boxShadow: i < input.length && !error ? `0 0 10px ${C.gold}70` : "none" }} />
         ))}
       </div>
-      {error && <div style={{ color: C.red, fontSize: 13, marginTop: -16 }}>Code incorrect</div>}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 72px)", gap: 12 }}>
+      {error && <div style={{ fontSize: 13, color: C.red, marginTop: -20, fontWeight: 500 }}>Code incorrect, réessayez</div>}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, width: "100%", maxWidth: 290 }}>
         {["1","2","3","4","5","6","7","8","9","","0","del"].map((k, i) => (
           k === "" ? <div key={i} /> :
-          <button key={i} onClick={() => handleKey(k)} style={{ height: 72, borderRadius: 16, border: `1px solid ${C.border}`, background: C.card, color: k === "del" ? C.muted : C.white, fontSize: k === "del" ? 20 : 24, fontWeight: 700, cursor: "pointer" }}>
-            {k === "del" ? "⌫" : k}
-          </button>
+          <button key={i} onClick={() => handleKey(k)} style={{ height: 70, borderRadius: 14, border: `1px solid ${C.border2}`, background: k === "del" ? "transparent" : `linear-gradient(145deg,${C.surface},${C.card})`, color: k === "del" ? C.muted : C.text, fontSize: k === "del" ? 20 : 26, fontWeight: k === "del" ? 400 : 700, cursor: "pointer", transition: "transform 0.1s,background 0.12s", fontFamily: k === "del" ? "inherit" : FONT.display }}
+            onMouseDown={e => { e.currentTarget.style.transform = "scale(0.93)"; e.currentTarget.style.background = k !== "del" ? `linear-gradient(145deg,${C.border2},${C.surface})` : `${C.surface}30`; }}
+            onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.background = k === "del" ? "transparent" : `linear-gradient(145deg,${C.surface},${C.card})`; }}
+            onTouchStart={e => { e.currentTarget.style.transform = "scale(0.93)"; }}
+            onTouchEnd={e => { e.currentTarget.style.transform = "scale(1)"; }}
+          >{k === "del" ? "⌫" : k}</button>
         ))}
       </div>
     </div>
@@ -702,14 +721,24 @@ function PinLock({ onUnlock }) {
 // ── Sélecteur de profil ───────────────────────────────────────────────────────
 function ProfilePicker({ onSelect }) {
   return (
-    <div style={{ background: C.bg, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20, padding: 24 }}>
-      <div style={{ fontSize: 40 }}>🚗</div>
-      <div style={{ fontSize: 22, fontWeight: 800, color: C.white }}>Choisir un profil</div>
-      <div style={{ fontSize: 14, color: C.muted, marginTop: -8 }}>Sélectionne ton compte</div>
-      {PROFILES.map(p => (
-        <button key={p.id} onClick={() => onSelect(p.id)} style={{ width: "100%", maxWidth: 320, background: C.card, border: `2px solid ${p.color}55`, borderRadius: 16, padding: "20px 24px", cursor: "pointer", textAlign: "left" }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: p.color }}>🧑‍✈️ {p.name}</div>
-          <div style={{ fontSize: 13, color: C.muted, marginTop: 6 }}>{p.company}</div>
+    <div style={{ background: `radial-gradient(ellipse 80% 40% at 50% -5%, ${C.goldGlow} 0%, transparent 60%), ${C.bg}`, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24, padding: 32, fontFamily: FONT.body }}>
+      <div className="fade-up" style={{ textAlign: "center", marginBottom: 4 }}>
+        <div style={{ fontSize: 11, color: C.goldDim, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 10 }}>Faiz Transport Paris</div>
+        <div style={{ fontFamily: FONT.display, fontSize: 28, fontWeight: 800, color: C.text, letterSpacing: "-0.03em" }}>Mes Comptes</div>
+        <div style={{ fontSize: 13, color: C.muted, marginTop: 6 }}>Sélectionne ton profil pour continuer</div>
+      </div>
+      {PROFILES.map((p, i) => (
+        <button key={p.id} onClick={() => onSelect(p.id)} className="fade-up" style={{ width: "100%", maxWidth: 340, background: `linear-gradient(145deg,${C.card},${C.surface})`, border: `1px solid ${p.color}35`, borderLeft: `3px solid ${p.color}`, borderRadius: 16, padding: "20px 22px", cursor: "pointer", textAlign: "left", transition: "transform 0.18s,box-shadow 0.18s,border-color 0.18s", animationDelay: `${i * 0.08}s` }}
+          onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = `0 8px 32px rgba(0,0,0,0.4), 0 0 20px ${p.color}15`; e.currentTarget.style.borderColor = `${p.color}60`; }}
+          onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = `${p.color}35`; }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 42, height: 42, borderRadius: "50%", background: `${p.color}18`, border: `1px solid ${p.color}40`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🧑‍✈️</div>
+            <div>
+              <div style={{ fontFamily: FONT.display, fontSize: 17, fontWeight: 700, color: p.color }}>{p.name}</div>
+              <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{p.company}</div>
+            </div>
+          </div>
         </button>
       ))}
     </div>
@@ -1023,30 +1052,30 @@ export default function App() {
   if (!profile) return <ProfilePicker onSelect={switchProfile} />;
 
   return (
-    <div style={{ background: C.bg, minHeight: "100vh", fontFamily: "'DM Sans','Segoe UI',sans-serif", color: C.text, maxWidth: 480, margin: "0 auto" }}>
+    <div style={{ background: C.bg, minHeight: "100vh", fontFamily: FONT.body, color: C.text, maxWidth: 480, margin: "0 auto" }}>
       {/* Header */}
-      <div style={{ padding: "16px 16px 8px", borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, background: C.bg, zIndex: 10 }}>
+      <div style={{ padding: "14px 16px 10px", borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, background: `rgba(5,6,10,0.95)`, backdropFilter: "blur(12px)", zIndex: 10 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
           <div>
-            <div style={{ fontSize: 11, color: C.goldDim, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase" }}>Course Privée</div>
+            <div style={{ fontSize: 10, color: C.goldDim, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 2 }}>Course Privée</div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ fontSize: 20, fontWeight: 800, color: C.white }}>Mes Comptes</div>
-              {defaultChauffeur && <button onClick={() => setShowChauffeurSettings(true)} style={{ background: `${C.gold}18`, border: `1px solid ${C.gold}44`, borderRadius: 20, padding: "3px 10px", fontSize: 12, color: C.gold, fontWeight: 600, cursor: "pointer" }}>🧑‍✈️ {defaultChauffeur}</button>}
+              <div style={{ fontFamily: FONT.display, fontSize: 20, fontWeight: 800, color: C.text, letterSpacing: "-0.02em" }}>Mes Comptes</div>
+              {defaultChauffeur && <button onClick={() => setShowChauffeurSettings(true)} style={{ background: C.goldGlow, border: `1px solid ${C.gold}40`, borderRadius: 20, padding: "3px 10px", fontSize: 12, color: C.gold, fontWeight: 600, cursor: "pointer", transition: "all 0.18s" }}>🧑‍✈️ {defaultChauffeur}</button>}
             </div>
-            <button onClick={() => { localStorage.removeItem("cp_profile"); setProfile(null); }} style={{ background: `${profileInfo?.color || C.blue}18`, border: `1px solid ${profileInfo?.color || C.blue}44`, borderRadius: 20, padding: "2px 10px", fontSize: 11, color: profileInfo?.color || C.blue, fontWeight: 600, cursor: "pointer", marginTop: 4 }}>
+            <button onClick={() => { localStorage.removeItem("cp_profile"); setProfile(null); }} style={{ background: `${profileInfo?.color || C.blue}12`, border: `1px solid ${profileInfo?.color || C.blue}35`, borderRadius: 20, padding: "2px 10px", fontSize: 11, color: profileInfo?.color || C.blue, fontWeight: 600, cursor: "pointer", marginTop: 5 }}>
               👤 {profileInfo?.name} · {profileInfo?.company} ↩
             </button>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <button onClick={prevMonth} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 8, width: 32, height: 32, cursor: "pointer", fontSize: 16 }}>‹</button>
-            <button onClick={() => setShowMonthPicker(true)} style={{ background: `${C.gold}18`, border: `1px solid ${C.gold}55`, borderRadius: 8, padding: "6px 10px", cursor: "pointer", minWidth: 90, textAlign: "center" }}>
-              <div style={{ fontSize: 11, color: C.goldDim, fontWeight: 700 }}>{year}</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: C.gold, textTransform: "capitalize" }}>{MOIS[month].slice(0, 4)}.</div>
+            <button onClick={prevMonth} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted, borderRadius: 10, width: 34, height: 34, cursor: "pointer", fontSize: 17, transition: "all 0.15s" }} onMouseEnter={e => { e.currentTarget.style.borderColor = C.border2; e.currentTarget.style.color = C.text; }} onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.muted; }}>‹</button>
+            <button onClick={() => setShowMonthPicker(true)} style={{ background: C.goldGlow, border: `1px solid ${C.gold}40`, borderRadius: 10, padding: "6px 12px", cursor: "pointer", minWidth: 88, textAlign: "center", transition: "all 0.15s" }} onMouseEnter={e => e.currentTarget.style.borderColor = `${C.gold}70`} onMouseLeave={e => e.currentTarget.style.borderColor = `${C.gold}40`}>
+              <div style={{ fontSize: 10, color: C.goldDim, fontWeight: 700, letterSpacing: "0.06em" }}>{year}</div>
+              <div style={{ fontFamily: FONT.display, fontSize: 13, fontWeight: 700, color: C.gold, textTransform: "capitalize" }}>{MOIS[month].slice(0, 4)}.</div>
             </button>
-            <button onClick={nextMonth} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 8, width: 32, height: 32, cursor: "pointer", fontSize: 16 }}>›</button>
+            <button onClick={nextMonth} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted, borderRadius: 10, width: 34, height: 34, cursor: "pointer", fontSize: 17, transition: "all 0.15s" }} onMouseEnter={e => { e.currentTarget.style.borderColor = C.border2; e.currentTarget.style.color = C.text; }} onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.muted; }}>›</button>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
+        <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 2 }}>
           {[["dashboard","📊 Résumé"],["courses","🚗 Courses"],["chauffeurs","🧑‍✈️ Chauffeurs"],["frais","💸 Frais"],["societes","🏢 Sociétés"]].map(([id, lbl]) => (
             <Pill key={id} label={lbl} active={tab === id} onClick={() => setTab(id)} />
           ))}
