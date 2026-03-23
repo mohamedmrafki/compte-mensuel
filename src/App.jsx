@@ -737,7 +737,7 @@ export default function App() {
         if (fraisRes.error) throw fraisRes.error;
         const dbCourses = (coursesRes.data || []).map(courseFromDb);
         const dbFrais = (fraisRes.data || []).map(fraisFromDb);
-        dbCourses.sort((a, b) => (a.heure || "99:99").localeCompare(b.heure || "99:99") || a.date.localeCompare(b.date));
+        dbCourses.sort((a, b) => b.date.localeCompare(a.date) || (b.heure || "00:00").localeCompare(a.heure || "00:00"));
         dbFrais.sort((a, b) => a.date.localeCompare(b.date));
         setCourses(dbCourses);
         setFrais(dbFrais);
@@ -788,7 +788,7 @@ export default function App() {
       const list = [...prev];
       const idx = list.findIndex(x => x.id === c.id);
       if (idx >= 0) list[idx] = c; else list.push(c);
-      list.sort((a, b) => (a.heure || "99:99").localeCompare(b.heure || "99:99") || a.date.localeCompare(b.date));
+      list.sort((a, b) => b.date.localeCompare(a.date) || (b.heure || "00:00").localeCompare(a.heure || "00:00"));
       return list;
     });
     setShowCourseModal(false); setEditCourse(null);
