@@ -8,7 +8,7 @@ const C = {
   green: "#2ECC8A", red: "#E85555", blue: "#4F8EF7", purple: "#9B7EF5", orange: "#F5923C", teal: "#26C4B0",
   text: "#EDF0F7", muted: "#576075", white: "#FFFFFF",
 };
-const FONT = { display: "'Syne', sans-serif", body: "'Jost', sans-serif" };
+const FONT = { display: "'Bebas Neue', sans-serif", body: "'Inter', sans-serif" };
 
 const MOIS = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
 const LIEUX = ["CDG","ORY","LBG","Gare de l'Est","Gare de Lyon","Gare du Nord","Gare Montparnasse"];
@@ -95,7 +95,7 @@ function recurringFromDb(r) {
 
 // ── Composants UI (identiques à l'original) ───────────────────────────────────
 const Pill = ({ label, active, onClick }) => (
-  <button onClick={onClick} style={{ padding: "6px 16px", borderRadius: 20, border: active ? `1px solid ${C.gold}55` : `1px solid transparent`, cursor: "pointer", fontSize: 13, fontWeight: 600, background: active ? C.goldGlow : C.surface, color: active ? C.gold : C.muted, whiteSpace: "nowrap", transition: "all 0.18s ease", boxShadow: active ? `0 0 14px ${C.gold}20` : "none", fontFamily: FONT.body }}>{label}</button>
+  <button onClick={onClick} style={{ padding: "6px 16px", borderRadius: 20, border: active ? `1px solid ${C.gold}55` : `1px solid transparent`, cursor: "pointer", fontSize: active ? 12 : 13, fontWeight: 600, background: active ? C.goldGlow : C.surface, color: active ? C.gold : C.muted, whiteSpace: "nowrap", transition: "all 0.18s ease", boxShadow: active ? `0 0 14px ${C.gold}20` : "none", fontFamily: active ? FONT.display : FONT.body, letterSpacing: active ? "0.08em" : "normal", textTransform: active ? "uppercase" : "none" }}>{label}</button>
 );
 const Card = ({ children, style }) => (
   <div style={{ background: `linear-gradient(145deg,${C.card} 0%,rgba(14,16,26,0.95) 100%)`, border: `1px solid ${C.border}`, borderRadius: 16, padding: 16, transition: "border-color 0.2s,box-shadow 0.2s,transform 0.2s", ...style }}
@@ -104,11 +104,11 @@ const Card = ({ children, style }) => (
   >{children}</div>
 );
 const Stat = ({ label, value, color = C.text, sub }) => (
-  <div style={{ flex: 1, minWidth: 0, background: `linear-gradient(145deg,${C.card},rgba(14,16,26,0.95))`, border: `1px solid ${C.border}`, borderTop: `2px solid ${color}`, borderRadius: 16, padding: 16, transition: "box-shadow 0.2s,transform 0.2s" }}
+  <div style={{ flex: 1, minWidth: 0, background: `linear-gradient(145deg,${C.card},rgba(14,16,26,0.95))`, border: `1px solid ${C.border}`, borderLeft: `3px solid ${color}`, borderRadius: 16, padding: 16, transition: "box-shadow 0.2s,transform 0.2s" }}
     onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 6px 28px rgba(0,0,0,0.35)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
     onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.transform = "translateY(0)"; }}>
-    <div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 4, fontWeight: 600 }}>{label}</div>
-    <div style={{ fontSize: 20, fontWeight: 700, color, fontFamily: "monospace", fontVariantNumeric: "tabular-nums" }}>{value}</div>
+    <div style={{ fontSize: 10, color, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 4, fontWeight: 700, fontFamily: FONT.display }}>{label}</div>
+    <div style={{ fontSize: 20, fontWeight: 700, color, fontFamily: FONT.display, letterSpacing: "0.02em" }}>{value}</div>
     {sub && <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>{sub}</div>}
   </div>
 );
@@ -121,7 +121,7 @@ const Btn = ({ children, onClick, variant = "primary", style, small }) => {
   const bg = isPrimary ? `linear-gradient(135deg,${C.gold} 0%,${C.goldBright} 100%)` : variant === "danger" ? C.red : C.surface;
   const col = variant === "ghost" ? C.muted : C.bg;
   const shadow = isPrimary ? `0 4px 16px ${C.gold}35` : "none";
-  return <button onClick={onClick} style={{ background: bg, color: col, border: variant === "ghost" ? `1px solid ${C.border}` : "none", borderRadius: 10, cursor: "pointer", padding: small ? "6px 13px" : "10px 20px", fontSize: small ? 12 : 14, fontWeight: 600, boxShadow: shadow, transition: "opacity 0.15s,transform 0.12s,box-shadow 0.15s", fontFamily: FONT.body, ...style }}
+  return <button onClick={onClick} style={{ background: bg, color: col, border: variant === "ghost" ? `1px solid ${C.border}` : "none", borderRadius: 10, cursor: "pointer", padding: small ? "6px 13px" : "10px 20px", fontSize: small ? 13 : 15, fontWeight: 600, boxShadow: shadow, transition: "opacity 0.15s,transform 0.12s,box-shadow 0.15s", fontFamily: isPrimary ? FONT.display : FONT.body, letterSpacing: isPrimary ? "0.06em" : "normal", textTransform: isPrimary ? "uppercase" : "none", ...style }}
     onMouseEnter={e => { e.currentTarget.style.opacity = "0.88"; e.currentTarget.style.transform = "translateY(-1px)"; }}
     onMouseLeave={e => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.transform = "translateY(0)"; }}
     onMouseDown={e => e.currentTarget.style.transform = "scale(0.97)"}
@@ -1059,7 +1059,7 @@ export default function App() {
           <div>
             <div style={{ fontSize: 10, color: C.goldDim, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 2 }}>Course Privée</div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ fontFamily: FONT.display, fontSize: 20, fontWeight: 800, color: C.text, letterSpacing: "-0.02em" }}>Mes Comptes</div>
+              <div style={{ fontFamily: FONT.display, fontSize: 24, color: C.text, letterSpacing: "0.06em", textTransform: "uppercase" }}>Mes Comptes</div>
               {defaultChauffeur && <button onClick={() => setShowChauffeurSettings(true)} style={{ background: C.goldGlow, border: `1px solid ${C.gold}40`, borderRadius: 20, padding: "3px 10px", fontSize: 12, color: C.gold, fontWeight: 600, cursor: "pointer", transition: "all 0.18s" }}>🧑‍✈️ {defaultChauffeur}</button>}
             </div>
             <button onClick={() => { localStorage.removeItem("cp_profile"); setProfile(null); }} style={{ background: `${profileInfo?.color || C.blue}12`, border: `1px solid ${profileInfo?.color || C.blue}35`, borderRadius: 20, padding: "2px 10px", fontSize: 11, color: profileInfo?.color || C.blue, fontWeight: 600, cursor: "pointer", marginTop: 5 }}>
@@ -1231,7 +1231,7 @@ export default function App() {
                           {c.notes && <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{c.notes}</div>}
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, marginLeft: 10 }}>
-                          <div style={{ fontSize: 18, fontWeight: 700, color: C.gold, fontFamily: "monospace" }}>{fmt(c.total)}</div>
+                          <div style={{ background: C.gold, color: C.bg, fontFamily: FONT.display, fontSize: 17, fontWeight: 700, letterSpacing: "0.04em", padding: "4px 11px", borderRadius: 8, whiteSpace: "nowrap" }}>{fmt(c.total)}</div>
                           <div style={{ display: "flex", gap: 6 }}><Btn small variant="ghost" onClick={() => setEditCourse(c)}>✏️</Btn><Btn small variant="ghost" onClick={() => duplicateCourse(c)} style={{ color: C.teal }}>📋</Btn><Btn small variant="danger" onClick={() => deleteCourse(c.id)}>🗑</Btn></div>
                         </div>
                       </div>
