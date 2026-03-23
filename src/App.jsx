@@ -635,6 +635,44 @@ function ChauffeurSettingsModal({ savedChauffeurs, defaultChauffeur, onSetDefaul
   );
 }
 
+// ── Écran de verrouillage PIN ─────────────────────────────────────────────────
+const PIN_CODE = "93270";
+function PinLock({ onUnlock }) {
+  const [input, setInput] = useState("");
+  const [error, setError] = useState(false);
+
+  const handleKey = (k) => {
+    if (k === "del") { setInput(p => p.slice(0, -1)); setError(false); return; }
+    const next = input + k;
+    setInput(next);
+    if (next.length === PIN_CODE.length) {
+      if (next === PIN_CODE) { sessionStorage.setItem("pin_ok", "1"); onUnlock(); }
+      else { setError(true); setTimeout(() => { setInput(""); setError(false); }, 700); }
+    }
+  };
+
+  return (
+    <div style={{ background: C.bg, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 32, padding: 24 }}>
+      <div style={{ fontSize: 40 }}>🔒</div>
+      <div style={{ fontSize: 20, fontWeight: 800, color: C.white }}>Code d'accès</div>
+      <div style={{ display: "flex", gap: 12 }}>
+        {Array.from({ length: PIN_CODE.length }).map((_, i) => (
+          <div key={i} style={{ width: 16, height: 16, borderRadius: "50%", background: i < input.length ? (error ? C.red : C.gold) : C.border, transition: "background 0.15s" }} />
+        ))}
+      </div>
+      {error && <div style={{ color: C.red, fontSize: 13, marginTop: -16 }}>Code incorrect</div>}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 72px)", gap: 12 }}>
+        {["1","2","3","4","5","6","7","8","9","","0","del"].map((k, i) => (
+          k === "" ? <div key={i} /> :
+          <button key={i} onClick={() => handleKey(k)} style={{ height: 72, borderRadius: 16, border: `1px solid ${C.border}`, background: C.card, color: k === "del" ? C.muted : C.white, fontSize: k === "del" ? 20 : 24, fontWeight: 700, cursor: "pointer" }}>
+            {k === "del" ? "⌫" : k}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Sélecteur de profil ───────────────────────────────────────────────────────
 function ProfilePicker({ onSelect }) {
   return (
@@ -654,7 +692,10 @@ function ProfilePicker({ onSelect }) {
 
 // ── APP PRINCIPAL ─────────────────────────────────────────────────────────────
 export default function App() {
+  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem("pin_ok") === "1");
   const [profile, setProfile] = useState(() => localStorage.getItem("cp_profile") || null);
+
+  if (!unlocked) return <PinLock onUnlock={() => setUnlocked(true)} />;
 
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
