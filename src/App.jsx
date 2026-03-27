@@ -1,6 +1,33 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "./supabase.js";
 
+// ── Mode démonstration ────────────────────────────────────────────────────────
+const DEMO_MODE = new URLSearchParams(window.location.search).get("demo") === "1";
+const _now = new Date();
+const _mk = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, "0")}`;
+const _d = (n) => `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, "0")}-${String(n).padStart(2, "0")}`;
+const DEMO_COURSES = [
+  { id: "d1", date: _d(Math.min(25, new Date(_now.getFullYear(), _now.getMonth() + 1, 0).getDate())), heure: "09:30", client: "M. Bernard", chauffeur: "Mohamed", vehicule: "Classe E", prestation: "transfert", prise: "Hôtel Plaza Athénée, 25 Avenue Montaigne, 75008 Paris", depose: "Aéroport CDG Terminal 2E", prixTTC: "120", supplements: [], total: "120", tips: "20", chauffeurFlatRate: "", chauffeurHourlyRate: "", chauffeurCost: "0", isPrivate: false, company: "Allocab", notes: "" },
+  { id: "d2", date: _d(22), heure: "14:00", client: "Mme Laurent", chauffeur: "Mohamed", vehicule: "Classe V", prestation: "transfert", prise: "Gare de Lyon, Paris", depose: "Hôtel du Louvre, 75001 Paris", prixTTC: "65", supplements: [{ id: "s1", type: "Bagages", description: "3 valises", amount: "10" }], total: "75", tips: "0", chauffeurFlatRate: "", chauffeurHourlyRate: "", chauffeurCost: "0", isPrivate: true, company: "", notes: "" },
+  { id: "d3", date: _d(20), heure: "07:15", client: "Dupont SA", chauffeur: "Mohamed", vehicule: "Classe S", prestation: "transfert", prise: "Orly Terminal 4", depose: "La Défense, Tour First, 92400 Courbevoie", prixTTC: "95", supplements: [], total: "95", tips: "0", chauffeurFlatRate: "", chauffeurHourlyRate: "", chauffeurCost: "0", isPrivate: false, company: "Snapcar", notes: "" },
+  { id: "d4", date: _d(18), heure: "10:00", client: "Groupe Michelin", chauffeur: "Oumar", vehicule: "Classe V", prestation: "mad", tauxHoraire: "70", nbHeures: "4", prixTTC: "", supplements: [], total: "280", tips: "0", chauffeurFlatRate: "", chauffeurHourlyRate: "45", chauffeurCost: "180", isPrivate: false, company: "Allocab", notes: "Journée réunion Paris" },
+  { id: "d5", date: _d(15), heure: "18:45", client: "M. Chen", chauffeur: "Mohamed", vehicule: "Classe E", prestation: "transfert", prise: "Musée du Louvre, 75001 Paris", depose: "Hôtel George V, 75008 Paris", prixTTC: "45", supplements: [{ id: "s2", type: "Attente", description: "30 min", amount: "15" }], total: "60", tips: "10", chauffeurFlatRate: "", chauffeurHourlyRate: "", chauffeurCost: "0", isPrivate: true, company: "", notes: "" },
+  { id: "d6", date: _d(10), heure: "08:00", client: "Air France Corp.", chauffeur: "Mohamed", vehicule: "Classe E", prestation: "transfert", prise: "7 Avenue Kléber, 75016 Paris", depose: "Aéroport CDG Terminal 1", prixTTC: "110", supplements: [], total: "110", tips: "0", chauffeurFlatRate: "", chauffeurHourlyRate: "", chauffeurCost: "0", isPrivate: false, company: "Snapcar", notes: "" },
+];
+const DEMO_FRAIS = [
+  { id: "df1", date: _d(1), category: "SFR", amount: "49", notes: "Forfait pro mobile", isRecurring: true, recurringId: "rec1" },
+  { id: "df2", date: _d(5), category: "Essence / Péage", amount: "180", notes: "Plein + péage A1", isRecurring: false, recurringId: null },
+  { id: "df3", date: _d(15), category: "Entretien / Réparation", amount: "320", notes: "Vidange Classe E", isRecurring: false, recurringId: null },
+];
+const DEMO_COMPANIES = [
+  { id: "dc1", name: "Allocab", profile: "demo", adresse: "15 Rue de la Paix, 75001 Paris", email: "compta@allocab.com", siren: "812 345 678", prices: { "Classe E": { aeroport: "120", paris: "55", mad: "60" }, "Classe V": { aeroport: "160", paris: "80", mad: "75" }, "Classe S": { aeroport: "180", paris: "95", mad: "90" } } },
+  { id: "dc2", name: "Snapcar", profile: "demo", adresse: "8 Boulevard Haussmann, 75009 Paris", email: "", siren: "", prices: { "Classe E": { aeroport: "95", paris: "45", mad: "55" }, "Classe V": { aeroport: "130", paris: "65", mad: "70" }, "Classe S": { aeroport: "150", paris: "80", mad: "85" } } },
+];
+const DEMO_CHAUFFEURS = [
+  { id: "ch1", name: "Mohamed", is_default: true, profile: "demo" },
+  { id: "ch2", name: "Oumar", is_default: false, profile: "demo" },
+];
+
 // ── Constantes ────────────────────────────────────────────────────────────────
 const C = {
   bg: "#05060A", surface: "#0D0F18", card: "#111520", border: "#1C2235", border2: "#283248",
@@ -892,8 +919,8 @@ function ProfilePicker({ onSelect }) {
 
 // ── APP PRINCIPAL ─────────────────────────────────────────────────────────────
 export default function App() {
-  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem("pin_ok") === "1");
-  const [profile, setProfile] = useState(() => localStorage.getItem("cp_profile") || null);
+  const [unlocked, setUnlocked] = useState(() => DEMO_MODE || sessionStorage.getItem("pin_ok") === "1");
+  const [profile, setProfile] = useState(() => DEMO_MODE ? "demo" : (localStorage.getItem("cp_profile") || null));
 
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -944,6 +971,13 @@ export default function App() {
   // Chargement de la config (une seule fois)
   useEffect(() => {
     if (!profile) return;
+    if (DEMO_MODE) {
+      setSavedCompanies(DEMO_COMPANIES);
+      setChauffeurObjects(DEMO_CHAUFFEURS);
+      setDefaultChauffeur("Mohamed");
+      setRecurringFrais([]);
+      return;
+    }
     (async () => {
       try {
         const [companiesRes, chauffeursRes, recurringRes] = await Promise.all([
@@ -970,6 +1004,13 @@ export default function App() {
   // Chargement des données du mois (rechargé à chaque changement de mois)
   useEffect(() => {
     if (!profile) return;
+    if (DEMO_MODE) {
+      setCourses(DEMO_COURSES);
+      setFrais(DEMO_FRAIS);
+      setPrevMonthCA(3850);
+      setLoaded(true);
+      return;
+    }
     setLoaded(false); setPrevMonthCA(null);
     (async () => {
       try {
@@ -1041,7 +1082,7 @@ export default function App() {
 
   // ── Handlers Courses ────────────────────────────────────────────────────────
   const saveCourse = async (c) => {
-    await supabase.from("courses").upsert({ ...courseToDb(c, mk), profile });
+    if (!DEMO_MODE) await supabase.from("courses").upsert({ ...courseToDb(c, mk), profile });
     setCourses(prev => {
       const list = [...prev];
       const idx = list.findIndex(x => x.id === c.id);
@@ -1053,7 +1094,7 @@ export default function App() {
   };
   const deleteCourse = async (id) => {
     if (!window.confirm("Supprimer ?")) return;
-    await supabase.from("courses").delete().eq("id", id);
+    if (!DEMO_MODE) await supabase.from("courses").delete().eq("id", id);
     setCourses(prev => prev.filter(c => c.id !== id));
   };
   const duplicateCourse = (c) => {
@@ -1077,7 +1118,7 @@ export default function App() {
 
   // ── Handlers Frais ──────────────────────────────────────────────────────────
   const saveFrais = async (f) => {
-    await supabase.from("frais").upsert({ ...fraisToDb(f, mk), profile });
+    if (!DEMO_MODE) await supabase.from("frais").upsert({ ...fraisToDb(f, mk), profile });
     setFrais(prev => {
       const list = [...prev];
       const idx = list.findIndex(x => x.id === f.id);
@@ -1089,7 +1130,7 @@ export default function App() {
   };
   const deleteFrais = async (id) => {
     if (!window.confirm("Supprimer ?")) return;
-    await supabase.from("frais").delete().eq("id", id);
+    if (!DEMO_MODE) await supabase.from("frais").delete().eq("id", id);
     setFrais(prev => prev.filter(f => f.id !== id));
   };
 
@@ -1098,18 +1139,18 @@ export default function App() {
     if (typeof nameOrObj === "string") {
       if (!savedCompanies.some(c => c.name.toLowerCase() === nameOrObj.toLowerCase())) {
         const company = { ...defCompany(nameOrObj), profile };
-        await supabase.from("companies").upsert(company);
+        if (!DEMO_MODE) await supabase.from("companies").upsert(company);
         setSavedCompanies(prev => [...prev, company]);
       }
     } else {
-      await supabase.from("companies").upsert({ ...nameOrObj, profile });
+      if (!DEMO_MODE) await supabase.from("companies").upsert({ ...nameOrObj, profile });
       setSavedCompanies(prev => { const idx = prev.findIndex(c => c.id === nameOrObj.id); if (idx >= 0) { const l = [...prev]; l[idx] = nameOrObj; return l; } return [...prev, nameOrObj]; });
     }
     setEditCompany(null);
   };
   const deleteCompany = async (id) => {
     if (!window.confirm("Supprimer ?")) return;
-    await supabase.from("companies").delete().eq("id", id);
+    if (!DEMO_MODE) await supabase.from("companies").delete().eq("id", id);
     setSavedCompanies(prev => prev.filter(c => c.id !== id));
   };
 
@@ -1118,7 +1159,7 @@ export default function App() {
     if (!chauffeurObjects.some(c => c.name.toLowerCase() === name.toLowerCase())) {
       const isFirst = chauffeurObjects.length === 0;
       const newCh = { id: uid(), name, is_default: isFirst, profile };
-      await supabase.from("chauffeurs").upsert(newCh);
+      if (!DEMO_MODE) await supabase.from("chauffeurs").upsert(newCh);
       setChauffeurObjects(prev => [...prev, newCh]);
       if (isFirst) setDefaultChauffeur(name);
     }
@@ -1126,13 +1167,13 @@ export default function App() {
   const handleDeleteChauffeur = async (name) => {
     if (!window.confirm(`Supprimer ${name} ?`)) return;
     const ch = chauffeurObjects.find(c => c.name === name);
-    if (ch) { await supabase.from("chauffeurs").delete().eq("id", ch.id); }
+    if (ch && !DEMO_MODE) { await supabase.from("chauffeurs").delete().eq("id", ch.id); }
     setChauffeurObjects(prev => prev.filter(c => c.name !== name));
     if (defaultChauffeur === name) setDefaultChauffeur("");
   };
   const handleSetDefault = async (name) => {
     const updates = chauffeurObjects.map(c => ({ ...c, is_default: c.name === name, profile }));
-    await supabase.from("chauffeurs").upsert(updates);
+    if (!DEMO_MODE) await supabase.from("chauffeurs").upsert(updates);
     setChauffeurObjects(updates);
     setDefaultChauffeur(name);
   };
@@ -1149,18 +1190,20 @@ export default function App() {
         category: r.category, amount: r.amount, notes: r.notes, isRecurring: true,
       }));
       if (toAdd.length === 0) return prev;
-      toAdd.forEach(f => supabase.from("frais").upsert({ ...fraisToDb(f, targetMk), profile }).then(() => {}));
+      if (!DEMO_MODE) toAdd.forEach(f => supabase.from("frais").upsert({ ...fraisToDb(f, targetMk), profile }).then(() => {}));
       return [...prev, ...toAdd].sort((a, b) => a.date.localeCompare(b.date));
     });
   };
 
   const handleSaveRecurring = async (list) => {
-    const { data: existing } = await supabase.from("recurring_frais").select("id").eq("profile", profile);
-    const existingIds = (existing || []).map(r => r.id);
-    const newIds = list.map(r => r.id);
-    const toDelete = existingIds.filter(id => !newIds.includes(id));
-    if (toDelete.length > 0) await supabase.from("recurring_frais").delete().in("id", toDelete);
-    if (list.length > 0) await supabase.from("recurring_frais").upsert(list.map(r => ({ ...recurringToDb(r), profile })));
+    if (!DEMO_MODE) {
+      const { data: existing } = await supabase.from("recurring_frais").select("id").eq("profile", profile);
+      const existingIds = (existing || []).map(r => r.id);
+      const newIds = list.map(r => r.id);
+      const toDelete = existingIds.filter(id => !newIds.includes(id));
+      if (toDelete.length > 0) await supabase.from("recurring_frais").delete().in("id", toDelete);
+      if (list.length > 0) await supabase.from("recurring_frais").upsert(list.map(r => ({ ...recurringToDb(r), profile })));
+    }
     setRecurringFrais(list);
     applyRecurringToMonth(mk, year, month, list);
     setShowRecurringModal(false);
@@ -1172,7 +1215,7 @@ export default function App() {
   // ── Statuts factures ────────────────────────────────────────────────────────
   const setInvoiceStatus = async (companyName, status) => {
     const key = `${mk}:${companyName}`;
-    await supabase.from("invoice_statuses").upsert({ id: key, status, updated_at: new Date().toISOString(), profile });
+    if (!DEMO_MODE) await supabase.from("invoice_statuses").upsert({ id: key, status, updated_at: new Date().toISOString(), profile });
     setInvoiceStatuses(prev => ({ ...prev, [key]: status }));
   };
   const getInvoiceStatus = (companyName) => invoiceStatuses[`${mk}:${companyName}`] || "a_envoyer";
@@ -1198,6 +1241,15 @@ export default function App() {
 
   return (
     <div style={{ background: C.bg, minHeight: "100dvh", fontFamily: FONT.body, color: C.text, maxWidth: 480, margin: "0 auto" }}>
+      {DEMO_MODE && (
+        <div style={{ background: `linear-gradient(90deg,${C.orange},#F5C23C)`, padding: "8px 16px", display: "flex", alignItems: "center", gap: 8, position: "sticky", top: 0, zIndex: 20 }}>
+          <span style={{ fontSize: 16 }}>👁</span>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 800, color: C.bg, fontFamily: FONT.display, letterSpacing: "0.1em", textTransform: "uppercase" }}>Mode démonstration</div>
+            <div style={{ fontSize: 11, color: "rgba(0,0,0,0.6)" }}>Données fictives — aucune modification enregistrée</div>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div style={{ padding: "14px 16px 10px", borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, background: `rgba(5,6,10,0.95)`, backdropFilter: "blur(12px)", zIndex: 10 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
