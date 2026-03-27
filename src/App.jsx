@@ -42,6 +42,13 @@ const LIEUX = ["CDG","ORY","LBG","Gare de l'Est","Gare de Lyon","Gare du Nord","
 const FRAIS_CATS = ["Essence / Péage","Bureau","Digidom","Assurance","SFR","Site web","Entretien / Réparation","Nourriture","Autre"];
 const VEHICULES = ["Classe E","Classe V","Classe S"];
 const SUPPLEMENT_TYPES = ["Attente","Stop supplémentaire","Parking","Péage","Nuit / Dimanche","Bagages","Autre"];
+const AEROPORTS = ["CDG","ORY","LBG"];
+const SOUS_TRAITANT_TARIFS = {
+  "Classe E": { aeroport: 80, paris: 50, mad: 50 },
+  "Classe V": { aeroport: 90, paris: 60, mad: 60 },
+  "Classe S": { aeroport: 130, paris: 80, mad: 80 },
+};
+const isAeroportTrajet = (prise, depose) => AEROPORTS.some(a => (prise || "").toUpperCase().includes(a) || (depose || "").toUpperCase().includes(a));
 
 const PROFILES = [
   { id: "oumar",      name: "Oumar",      company: "Faiz Transport Paris", color: "#5B9CF6" },
@@ -520,6 +527,21 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
     setF(p => ({ ...p, total: computeTotal(p), chauffeurCost: computeChauffeurCost(p) }));
   }, [f.prestation, f.prixTTC, f.tauxHoraire, f.nbHeures, f.chauffeurFlatRate, f.chauffeurHourlyRate, JSON.stringify(f.supplements)]);
 
+  // Auto-fill tarif sous-traitant depuis la grille
+  useEffect(() => {
+    const isOther = f.chauffeur && f.chauffeur !== defaultChauffeur;
+    if (!isOther || !f.vehicule) return;
+    const tarifs = SOUS_TRAITANT_TARIFS[f.vehicule];
+    if (!tarifs) return;
+    if (f.prestation === "transfert") {
+      const isAero = isAeroportTrajet(f.prise, f.depose);
+      const rate = isAero ? tarifs.aeroport : tarifs.paris;
+      setF(p => ({ ...p, chauffeurFlatRate: String(rate) }));
+    } else if (f.prestation === "mad") {
+      setF(p => ({ ...p, chauffeurHourlyRate: String(tarifs.mad) }));
+    }
+  }, [f.chauffeur, f.vehicule, f.prestation, f.prise, f.depose]);
+
   // Auto-fill prix depuis le tarif de la société
   useEffect(() => {
     if (!f.company || !f.vehicule || !tarifType) return;
@@ -662,7 +684,10 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
 
         {isOtherDriver && (
           <div style={{ background: `${C.orange}12`, border: `2px solid ${C.orange}55`, borderRadius: 12, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
-            <div style={{ fontSize: 12, color: C.orange, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>💰 Tarif payé à {f.chauffeur}</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 12, color: C.orange, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>💰 Tarif payé à {f.chauffeur}</div>
+              {SOUS_TRAITANT_TARIFS[f.vehicule] && <span style={{ fontSize: 11, color: C.green, background: `${C.green}18`, borderRadius: 6, padding: "2px 8px" }}>Grille auto</span>}
+            </div>
             {f.prestation === "transfert" ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
