@@ -16,15 +16,18 @@
     <style>
       *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
       html { scroll-behavior: smooth; }
+      html { height: -webkit-fill-available; }
       body {
         background: #05060A;
         color: #EDF0F7;
-        overscroll-behavior: none;
+        overscroll-behavior-x: none;
         font-family: 'Inter', sans-serif;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
+        min-height: 100vh;
+        min-height: -webkit-fill-available;
       }
-      input, select, textarea, button { font-family: inherit; }
+      input, select, textarea, button { font-family: inherit; touch-action: manipulation; }
       input[type="number"]::-webkit-inner-spin-button,
       input[type="number"]::-webkit-outer-spin-button { opacity: 1; }
       ::selection { background: rgba(212,168,83,0.22); color: #F0C870; }

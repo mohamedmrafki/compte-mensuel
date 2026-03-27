@@ -148,17 +148,31 @@ function VoiceNoteBtn({ onText }) {
     </button>
   );
 }
-const Modal = ({ title, onClose, children }) => (
-  <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.88)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center", backdropFilter: "blur(4px)" }} onClick={e => e.target === e.currentTarget && onClose()}>
-    <div className="slide-up" style={{ background: `linear-gradient(160deg,${C.card} 0%,${C.surface} 100%)`, border: `1px solid ${C.border2}`, borderRadius: "22px 22px 0 0", width: "100%", maxWidth: 480, maxHeight: "92vh", overflowY: "auto", padding: 22 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <span style={{ fontSize: 17, fontWeight: 700, color: C.text, fontFamily: FONT.display }}>{title}</span>
-        <button onClick={onClose} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted, fontSize: 16, cursor: "pointer", borderRadius: 8, width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+function Modal({ title, onClose, children }) {
+  useEffect(() => {
+    const y = window.scrollY;
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${y}px`;
+    document.body.style.width = "100%";
+    return () => {
+      document.body.style.position = "";
+      document.body.style.top = "";
+      document.body.style.width = "";
+      window.scrollTo(0, y);
+    };
+  }, []);
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.88)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center", backdropFilter: "blur(4px)" }} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="slide-up" style={{ background: `linear-gradient(160deg,${C.card} 0%,${C.surface} 100%)`, border: `1px solid ${C.border2}`, borderRadius: "22px 22px 0 0", width: "100%", maxWidth: 480, maxHeight: "92dvh", overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", padding: 22 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <span style={{ fontSize: 17, fontWeight: 700, color: C.text, fontFamily: FONT.display }}>{title}</span>
+          <button onClick={onClose} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted, fontSize: 16, cursor: "pointer", borderRadius: 8, width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+        </div>
+        {children}
       </div>
-      {children}
     </div>
-  </div>
-);
+  );
+}
 
 function ACInput({ label, value, onChange, suggestions, placeholder, icon = "📍" }) {
   const [open, setOpen] = useState(false);
@@ -822,7 +836,7 @@ function PinLock({ onUnlock }) {
   };
 
   return (
-    <div style={{ background: `radial-gradient(ellipse 80% 40% at 50% -5%, ${C.goldGlow} 0%, transparent 60%), ${C.bg}`, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 36, padding: 32, fontFamily: FONT.body }}>
+    <div style={{ background: `radial-gradient(ellipse 80% 40% at 50% -5%, ${C.goldGlow} 0%, transparent 60%), ${C.bg}`, minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 36, padding: 32, fontFamily: FONT.body }}>
       <div className="fade-up" style={{ textAlign: "center" }}>
         <div style={{ width: 68, height: 68, borderRadius: "50%", background: `linear-gradient(135deg,${C.goldDim}25,${C.gold}15)`, border: `1px solid ${C.gold}35`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, margin: "0 auto 18px", boxShadow: `0 0 40px ${C.gold}15` }}>🔐</div>
         <div style={{ fontFamily: FONT.display, fontSize: 24, fontWeight: 800, color: C.text, letterSpacing: "-0.02em" }}>Mes Comptes</div>
@@ -852,7 +866,7 @@ function PinLock({ onUnlock }) {
 // ── Sélecteur de profil ───────────────────────────────────────────────────────
 function ProfilePicker({ onSelect }) {
   return (
-    <div style={{ background: `radial-gradient(ellipse 80% 40% at 50% -5%, ${C.goldGlow} 0%, transparent 60%), ${C.bg}`, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24, padding: 32, fontFamily: FONT.body }}>
+    <div style={{ background: `radial-gradient(ellipse 80% 40% at 50% -5%, ${C.goldGlow} 0%, transparent 60%), ${C.bg}`, minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24, padding: 32, fontFamily: FONT.body }}>
       <div className="fade-up" style={{ textAlign: "center", marginBottom: 4 }}>
         <div style={{ fontSize: 11, color: C.goldDim, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 10 }}>Faiz Transport Paris</div>
         <div style={{ fontFamily: FONT.display, fontSize: 28, fontWeight: 800, color: C.text, letterSpacing: "-0.03em" }}>Mes Comptes</div>
@@ -1183,7 +1197,7 @@ export default function App() {
   if (!profile) return <ProfilePicker onSelect={switchProfile} />;
 
   return (
-    <div style={{ background: C.bg, minHeight: "100vh", fontFamily: FONT.body, color: C.text, maxWidth: 480, margin: "0 auto" }}>
+    <div style={{ background: C.bg, minHeight: "100dvh", fontFamily: FONT.body, color: C.text, maxWidth: 480, margin: "0 auto" }}>
       {/* Header */}
       <div style={{ padding: "14px 16px 10px", borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, background: `rgba(5,6,10,0.95)`, backdropFilter: "blur(12px)", zIndex: 10 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
@@ -1206,7 +1220,7 @@ export default function App() {
             <button onClick={nextMonth} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted, borderRadius: 10, width: 34, height: 34, cursor: "pointer", fontSize: 17, transition: "all 0.15s" }} onMouseEnter={e => { e.currentTarget.style.borderColor = C.border2; e.currentTarget.style.color = C.text; }} onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.muted; }}>›</button>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 2 }}>
+        <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 2, WebkitOverflowScrolling: "touch" }}>
           {[["dashboard","📊 Résumé"],["courses","🚗 Courses"],["chauffeurs","🧑‍✈️ Chauffeurs"],["frais","💸 Frais"],["societes","🏢 Sociétés"]].map(([id, lbl]) => (
             <Pill key={id} label={lbl} active={tab === id} onClick={() => setTab(id)} />
           ))}
@@ -1331,7 +1345,7 @@ export default function App() {
                 </div>
                 <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="🔍 Rechercher client, société, date…" style={{ ...iBase, fontSize: 13 }} />
                 {uniqueDriversInMonth.length > 1 && (
-                  <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
+                  <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2, WebkitOverflowScrolling: "touch" }}>
                     <button onClick={() => setFilterChauffeur("")} style={{ padding: "4px 12px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, background: !filterChauffeur ? C.gold : C.surface, color: !filterChauffeur ? C.bg : C.muted, whiteSpace: "nowrap" }}>Tous</button>
                     {uniqueDriversInMonth.map(d => <button key={d} onClick={() => setFilterChauffeur(filterChauffeur === d ? "" : d)} style={{ padding: "4px 12px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, background: filterChauffeur === d ? C.gold : C.surface, color: filterChauffeur === d ? C.bg : C.muted, whiteSpace: "nowrap" }}>🧑‍✈️ {d}</button>)}
                   </div>
