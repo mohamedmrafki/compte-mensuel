@@ -193,27 +193,32 @@ if (navigator.geolocation) {
   );
 }
 
-function formatPhoton(f) {
-  const p = f.properties;
-  const addr = [p.housenumber, p.street].filter(Boolean).join(" ");
-  const city = [p.postcode, p.city || p.town || p.village].filter(Boolean).join(" ");
-  const addrLine = [addr, city].filter(Boolean).join(", ");
-  const hasName = p.name && p.name !== addr;
-  return { name: hasName ? p.name : null, addr: addrLine, label: hasName ? (addrLine ? `${p.name}, ${addrLine}` : p.name) : addrLine };
+function formatNominatim(r) {
+  const name = r.name || r.display_name.split(",")[0].trim();
+  const a = r.address || {};
+  const road = [a.house_number, a.road].filter(Boolean).join(" ");
+  const city = [a.postcode, a.city || a.town || a.village || a.municipality].filter(Boolean).join(" ");
+  const addrLine = [road, city].filter(Boolean).join(", ") || r.display_name.split(",").slice(1, 3).join(",").trim();
+  const isNamed = name && !road.startsWith(name);
+  return { name: isNamed ? name : null, addr: addrLine, label: isNamed ? (addrLine ? `${name}, ${addrLine}` : name) : addrLine };
 }
 
 async function searchPlaces(query) {
   const q = encodeURIComponent(query);
   const { lat, lon } = geoRef;
-  const [photonRes, banRes] = await Promise.allSettled([
-    fetch(`https://photon.komoot.io/api/?q=${q}&limit=5&lat=${lat}&lon=${lon}&lang=fr`).then(r => r.json()),
+  const [nomRes, banRes] = await Promise.allSettled([
+    fetch(
+      `https://nominatim.openstreetmap.org/search?q=${q}&format=json&addressdetails=1&limit=6` +
+      `&viewbox=${lon - 0.4},${lat + 0.3},${lon + 0.4},${lat - 0.3}&bounded=0&accept-language=fr`,
+      { headers: { "Accept-Language": "fr" } }
+    ).then(r => r.json()),
     fetch(`https://api-adresse.data.gouv.fr/search/?q=${q}&limit=4&lat=${lat}&lon=${lon}`).then(r => r.json()),
   ]);
   const results = [];
   const seen = new Set();
-  if (photonRes.status === "fulfilled") {
-    for (const f of (photonRes.value.features || [])) {
-      const item = formatPhoton(f);
+  if (nomRes.status === "fulfilled") {
+    for (const r of (nomRes.value || [])) {
+      const item = formatNominatim(r);
       if (!item.label) continue;
       const key = item.label.toLowerCase().slice(0, 40);
       if (!seen.has(key)) { seen.add(key); results.push(item); }
@@ -229,15 +234,17 @@ async function searchPlaces(query) {
   return results.slice(0, 7);
 }
 
-const POI_ICONS = { hotel: "🏨", museum: "🏛", station: "🚉", airport: "✈️", hospital: "🏥", restaurant: "🍽", default: "📍" };
 function poiIcon(item) {
   if (!item.name) return "📍";
   const n = item.name.toLowerCase();
   if (n.includes("hôtel") || n.includes("hotel")) return "🏨";
   if (n.includes("gare") || n.includes("station")) return "🚉";
-  if (n.includes("aéroport") || n.includes("airport") || n.includes("cdg") || n.includes("ory")) return "✈️";
-  if (n.includes("musée") || n.includes("musee")) return "🏛";
-  if (n.includes("hôpital") || n.includes("clinique")) return "🏥";
+  if (n.includes("aéroport") || n.includes("airport") || n.includes("cdg") || n.includes("orly")) return "✈️";
+  if (n.includes("musée") || n.includes("musee") || n.includes("louvre") || n.includes("orsay")) return "🏛";
+  if (n.includes("hôpital") || n.includes("clinique") || n.includes("hospital")) return "🏥";
+  if (n.includes("restaurant") || n.includes("brasserie") || n.includes("café") || n.includes("cafe")) return "🍽";
+  if (n.includes("palais") || n.includes("château") || n.includes("chateau") || n.includes("tour eiffel")) return "🏰";
+  if (n.includes("parc") || n.includes("jardin")) return "🌳";
   return "🏢";
 }
 
