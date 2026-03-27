@@ -44,8 +44,9 @@ const VEHICULES = ["Classe E","Classe V","Classe S"];
 const SUPPLEMENT_TYPES = ["Attente","Stop supplémentaire","Parking","Péage","Nuit / Dimanche","Bagages","Autre"];
 
 const PROFILES = [
-  { id: "oumar",   name: "Oumar",   company: "Faiz Transport Paris", color: "#5B9CF6" },
-  { id: "mohamed", name: "Mohamed", company: "AMR Drive",            color: "#C8A45A" },
+  { id: "oumar",      name: "Oumar",      company: "Faiz Transport Paris", color: "#5B9CF6" },
+  { id: "mohamed",    name: "Mohamed",    company: "AMR Drive",            color: "#C8A45A" },
+  { id: "commission", name: "Commission", company: "Commune",              color: "#2ECC8A" },
 ];
 
 const INVOICE_STATUSES = [
@@ -951,6 +952,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterChauffeur, setFilterChauffeur] = useState("");
   const [prevMonthCA, setPrevMonthCA] = useState(null);
+  const [commissionCA, setCommissionCA] = useState(0);
   const [objectifCA, setObjectifCA] = useState(() => Number(localStorage.getItem(`objectif_${profile || ""}`) || 0));
   const [showObjectifInput, setShowObjectifInput] = useState(false);
   const [objectifInputVal, setObjectifInputVal] = useState("");
@@ -1015,12 +1017,16 @@ export default function App() {
     (async () => {
       try {
         const prevMk = month === 0 ? `${year - 1}-12` : `${year}-${String(month).padStart(2, "0")}`;
-        const [coursesRes, fraisRes, invoiceRes, prevRes] = await Promise.all([
+        const queries = [
           supabase.from("courses").select("*").eq("month_key", mk).eq("profile", profile).order("heure"),
           supabase.from("frais").select("*").eq("month_key", mk).eq("profile", profile).order("date"),
           supabase.from("invoice_statuses").select("*").like("id", `${mk}:%`).eq("profile", profile),
           supabase.from("courses").select("total").eq("month_key", prevMk).eq("profile", profile),
-        ]);
+        ];
+        if (profile !== "commission") {
+          queries.push(supabase.from("courses").select("total,chauffeur_cost").eq("month_key", mk).eq("profile", "commission"));
+        }
+        const [coursesRes, fraisRes, invoiceRes, prevRes, commRes] = await Promise.all(queries);
         if (coursesRes.error) throw coursesRes.error;
         if (fraisRes.error) throw fraisRes.error;
         const dbCourses = (coursesRes.data || []).map(courseFromDb);
@@ -1033,6 +1039,8 @@ export default function App() {
         (invoiceRes.data || []).forEach(s => { ivs[s.id] = s.status; });
         setInvoiceStatuses(ivs);
         setPrevMonthCA((prevRes.data || []).reduce((s, r) => s + Number(r.total || 0), 0));
+        if (commRes) setCommissionCA((commRes.data || []).reduce((s, r) => s + Number(r.total || 0) - Number(r.chauffeur_cost || 0), 0));
+        else setCommissionCA(0);
         setLoaded(true);
         setDbError(null);
       } catch (e) {
@@ -1053,9 +1061,12 @@ export default function App() {
   const mf = frais;
 
   const totalCA = mc.reduce((s, c) => s + Number(c.total || 0), 0);
+  const totalCC = mc.reduce((s, c) => s + Number(c.chauffeurCost || 0), 0);
+  const totalMargeCommission = profile === "commission" ? totalCA - totalCC : commissionCA;
+  const commissionShare = totalMargeCommission / 2;
+  const totalCAAvecCommission = profile !== "commission" ? totalCA + commissionShare : totalCA;
   const totalTips = mc.reduce((s, c) => s + Number(c.tips || 0), 0);
   const totalFrais = mf.reduce((s, f) => s + Number(f.amount || 0), 0);
-  const totalCC = mc.reduce((s, c) => s + Number(c.chauffeurCost || 0), 0);
   const net = totalCA - totalFrais - totalCC;
   const byCompany = {};
   mc.filter(c => c.company && !c.isPrivate).forEach(c => { if (!byCompany[c.company]) byCompany[c.company] = { amount: 0, trips: [] }; byCompany[c.company].amount += Number(c.total || 0); byCompany[c.company].trips.push(c); });
@@ -1273,9 +1284,11 @@ export default function App() {
           </div>
         </div>
         <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 2, WebkitOverflowScrolling: "touch" }}>
-          {[["dashboard","📊 Résumé"],["courses","🚗 Courses"],["chauffeurs","🧑‍✈️ Chauffeurs"],["frais","💸 Frais"],["societes","🏢 Sociétés"]].map(([id, lbl]) => (
-            <Pill key={id} label={lbl} active={tab === id} onClick={() => setTab(id)} />
-          ))}
+          {[["dashboard","📊 Résumé"],["courses","🚗 Courses"],["chauffeurs","🧑‍✈️ Chauffeurs"],["frais","💸 Frais"],["societes","🏢 Sociétés"]]
+            .filter(([id]) => profile !== "commission" || (id !== "frais" && id !== "chauffeurs"))
+            .map(([id, lbl]) => (
+              <Pill key={id} label={lbl} active={tab === id} onClick={() => setTab(id)} />
+            ))}
         </div>
       </div>
 
@@ -1323,40 +1336,84 @@ export default function App() {
                   </Card>
                   <Stat label="Pourboires" value={fmt(totalTips)} color={C.green} />
                 </div>
-                <div style={{ display: "flex", gap: 10 }}>
-                  <Stat label="Frais" value={fmt(totalFrais)} color={C.red} />
-                  <Stat label="Chauffeurs" value={fmt(totalCC)} color={C.orange} />
-                </div>
-                <Card style={{ borderColor: net >= 0 ? `${C.green}44` : `${C.red}44` }}>
-                  <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Net (CA − Frais − Chauffeurs)</div>
-                  <div style={{ fontSize: 28, fontWeight: 800, color: net >= 0 ? C.green : C.red, fontFamily: "monospace" }}>{fmt(net)}</div>
-                </Card>
-                <Card>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                    <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: 1 }}>Objectif mensuel</div>
-                    <button onClick={() => { setObjectifInputVal(String(objectifCA || "")); setShowObjectifInput(v => !v); }} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 18, lineHeight: 1 }}>✏️</button>
-                  </div>
-                  {showObjectifInput && (
-                    <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-                      <input type="number" value={objectifInputVal} onChange={e => setObjectifInputVal(e.target.value)} placeholder="ex: 5000" style={{ ...iBase, flex: 1 }} />
-                      <Btn small onClick={() => saveObjectif(objectifInputVal)}>OK</Btn>
+                {profile !== "commission" && commissionCA > 0 && (
+                  <Card style={{ borderColor: `${C.green}44` }}>
+                    <div style={{ fontSize: 10, color: C.green, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, fontWeight: 700 }}>Commission commune</div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                      <span style={{ fontSize: 13, color: C.muted }}>Total commissions (marge)</span>
+                      <span style={{ fontFamily: "monospace", fontWeight: 700, color: C.text }}>{fmt(commissionCA)}</span>
                     </div>
-                  )}
-                  {objectifCA > 0 ? (
-                    <>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 6 }}>
-                        <span style={{ color: C.muted }}>{fmt(totalCA)} / {fmt(objectifCA)}</span>
-                        <span style={{ fontWeight: 700, color: totalCA >= objectifCA ? C.green : C.gold }}>{Math.min(100, Math.round(totalCA / objectifCA * 100))}%</span>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: `${C.green}12`, borderRadius: 8, padding: "8px 12px" }}>
+                      <span style={{ fontSize: 13, color: C.green, fontWeight: 600 }}>Ta part (÷2)</span>
+                      <span style={{ fontFamily: "monospace", fontWeight: 800, color: C.green, fontSize: 17 }}>{fmt(commissionShare)}</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+                      <span style={{ fontSize: 12, color: C.muted }}>CA total (perso + commission)</span>
+                      <span style={{ fontFamily: "monospace", fontWeight: 700, color: C.gold }}>{fmt(totalCAAvecCommission)}</span>
+                    </div>
+                  </Card>
+                )}
+                {profile === "commission" ? (
+                  <>
+                    <div style={{ display: "flex", gap: 10 }}>
+                      <Stat label="Chauffeurs" value={fmt(totalCC)} color={C.orange} />
+                      <Card style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 10, color: C.green, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4, fontWeight: 700 }}>Marge nette</div>
+                        <div style={{ fontSize: 20, fontWeight: 700, color: C.green, fontFamily: "monospace" }}>{fmt(totalMargeCommission)}</div>
+                        <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>CA − Chauffeurs</div>
+                      </Card>
+                    </div>
+                    <Card style={{ borderColor: `${C.green}55` }}>
+                      <div style={{ fontSize: 11, color: C.green, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12, fontWeight: 700 }}>Répartition (marge ÷ 2)</div>
+                      <div style={{ display: "flex", gap: 10 }}>
+                        {PROFILES.filter(p => p.id !== "commission").map(p => (
+                          <div key={p.id} style={{ flex: 1, background: `${p.color}12`, border: `1px solid ${p.color}44`, borderRadius: 12, padding: "12px 14px", textAlign: "center" }}>
+                            <div style={{ fontSize: 12, color: p.color, fontWeight: 700, marginBottom: 4 }}>{p.name}</div>
+                            <div style={{ fontSize: 22, fontWeight: 800, fontFamily: "monospace", color: p.color }}>{fmt(totalMargeCommission / 2)}</div>
+                            <div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>÷ 2</div>
+                          </div>
+                        ))}
                       </div>
-                      <div style={{ background: C.surface, borderRadius: 6, height: 8, overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: `${Math.min(100, totalCA / objectifCA * 100)}%`, background: totalCA >= objectifCA ? C.green : C.gold, borderRadius: 6, transition: "width 0.4s" }} />
+                    </Card>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ display: "flex", gap: 10 }}>
+                      <Stat label="Frais" value={fmt(totalFrais)} color={C.red} />
+                      <Stat label="Chauffeurs" value={fmt(totalCC)} color={C.orange} />
+                    </div>
+                    <Card style={{ borderColor: net >= 0 ? `${C.green}44` : `${C.red}44` }}>
+                      <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Net (CA − Frais − Chauffeurs)</div>
+                      <div style={{ fontSize: 28, fontWeight: 800, color: net >= 0 ? C.green : C.red, fontFamily: "monospace" }}>{fmt(net)}</div>
+                    </Card>
+                    <Card>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                        <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: 1 }}>Objectif mensuel</div>
+                        <button onClick={() => { setObjectifInputVal(String(objectifCA || "")); setShowObjectifInput(v => !v); }} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 18, lineHeight: 1 }}>✏️</button>
                       </div>
-                      {totalCA >= objectifCA && <div style={{ fontSize: 12, color: C.green, marginTop: 6, fontWeight: 700 }}>🎉 Objectif atteint !</div>}
-                    </>
-                  ) : (
-                    <div style={{ fontSize: 13, color: C.muted }}>Définir un objectif de CA pour voir ta progression.</div>
-                  )}
-                </Card>
+                      {showObjectifInput && (
+                        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                          <input type="number" value={objectifInputVal} onChange={e => setObjectifInputVal(e.target.value)} placeholder="ex: 5000" style={{ ...iBase, flex: 1 }} />
+                          <Btn small onClick={() => saveObjectif(objectifInputVal)}>OK</Btn>
+                        </div>
+                      )}
+                      {objectifCA > 0 ? (
+                        <>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 6 }}>
+                            <span style={{ color: C.muted }}>{fmt(totalCA)} / {fmt(objectifCA)}</span>
+                            <span style={{ fontWeight: 700, color: totalCA >= objectifCA ? C.green : C.gold }}>{Math.min(100, Math.round(totalCA / objectifCA * 100))}%</span>
+                          </div>
+                          <div style={{ background: C.surface, borderRadius: 6, height: 8, overflow: "hidden" }}>
+                            <div style={{ height: "100%", width: `${Math.min(100, totalCA / objectifCA * 100)}%`, background: totalCA >= objectifCA ? C.green : C.gold, borderRadius: 6, transition: "width 0.4s" }} />
+                          </div>
+                          {totalCA >= objectifCA && <div style={{ fontSize: 12, color: C.green, marginTop: 6, fontWeight: 700 }}>🎉 Objectif atteint !</div>}
+                        </>
+                      ) : (
+                        <div style={{ fontSize: 13, color: C.muted }}>Définir un objectif de CA pour voir ta progression.</div>
+                      )}
+                    </Card>
+                  </>
+                )}
                 {Object.keys(byVehicle).length > 0 && (
                   <Card>
                     <div style={{ fontSize: 12, color: C.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Par gamme</div>
