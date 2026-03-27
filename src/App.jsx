@@ -193,6 +193,54 @@ if (navigator.geolocation) {
   );
 }
 
+function formatPhoton(f) {
+  const p = f.properties;
+  const addr = [p.housenumber, p.street].filter(Boolean).join(" ");
+  const city = [p.postcode, p.city || p.town || p.village].filter(Boolean).join(" ");
+  const addrLine = [addr, city].filter(Boolean).join(", ");
+  const hasName = p.name && p.name !== addr;
+  return { name: hasName ? p.name : null, addr: addrLine, label: hasName ? (addrLine ? `${p.name}, ${addrLine}` : p.name) : addrLine };
+}
+
+async function searchPlaces(query) {
+  const q = encodeURIComponent(query);
+  const { lat, lon } = geoRef;
+  const [photonRes, banRes] = await Promise.allSettled([
+    fetch(`https://photon.komoot.io/api/?q=${q}&limit=5&lat=${lat}&lon=${lon}&lang=fr`).then(r => r.json()),
+    fetch(`https://api-adresse.data.gouv.fr/search/?q=${q}&limit=4&lat=${lat}&lon=${lon}`).then(r => r.json()),
+  ]);
+  const results = [];
+  const seen = new Set();
+  if (photonRes.status === "fulfilled") {
+    for (const f of (photonRes.value.features || [])) {
+      const item = formatPhoton(f);
+      if (!item.label) continue;
+      const key = item.label.toLowerCase().slice(0, 40);
+      if (!seen.has(key)) { seen.add(key); results.push(item); }
+    }
+  }
+  if (banRes.status === "fulfilled") {
+    for (const f of (banRes.value.features || [])) {
+      const label = f.properties.label;
+      const key = label.toLowerCase().slice(0, 40);
+      if (!seen.has(key)) { seen.add(key); results.push({ name: null, addr: label, label }); }
+    }
+  }
+  return results.slice(0, 7);
+}
+
+const POI_ICONS = { hotel: "🏨", museum: "🏛", station: "🚉", airport: "✈️", hospital: "🏥", restaurant: "🍽", default: "📍" };
+function poiIcon(item) {
+  if (!item.name) return "📍";
+  const n = item.name.toLowerCase();
+  if (n.includes("hôtel") || n.includes("hotel")) return "🏨";
+  if (n.includes("gare") || n.includes("station")) return "🚉";
+  if (n.includes("aéroport") || n.includes("airport") || n.includes("cdg") || n.includes("ory")) return "✈️";
+  if (n.includes("musée") || n.includes("musee")) return "🏛";
+  if (n.includes("hôpital") || n.includes("clinique")) return "🏥";
+  return "🏢";
+}
+
 function AddressInput({ label, value, onChange, placeholder }) {
   const [open, setOpen] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
@@ -213,33 +261,36 @@ function AddressInput({ label, value, onChange, placeholder }) {
     timer.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const url = `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(v)}&limit=6&lat=${geoRef.lat}&lon=${geoRef.lon}`;
-        const res = await fetch(url);
-        const data = await res.json();
-        const items = (data.features || []).map(f => f.properties.label);
+        const items = await searchPlaces(v);
         setSuggestions(items);
         setOpen(items.length > 0);
       } catch { setSuggestions([]); }
       setLoading(false);
-    }, 280);
+    }, 320);
   };
 
   return (
     <div ref={ref} style={{ position: "relative", display: "flex", flexDirection: "column", gap: 4 }}>
       {label && <Lbl>{label}</Lbl>}
       <div style={{ position: "relative" }}>
-        <input value={value || ""} onChange={e => handleChange(e.target.value)} onFocus={() => value && value.length >= 3 && setOpen(suggestions.length > 0)} placeholder={placeholder || "Adresse…"} style={{ ...iBase, paddingRight: loading ? 32 : 13 }} />
-        {loading && <div style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: C.muted }}>⏳</div>}
+        <input value={value || ""} onChange={e => handleChange(e.target.value)} onFocus={() => value && value.length >= 3 && setOpen(suggestions.length > 0)} placeholder={placeholder || "Hôtel, adresse, gare, musée…"} style={{ ...iBase, paddingRight: 36 }} />
+        <div style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 14, pointerEvents: "none", opacity: 0.6 }}>{loading ? "⏳" : "🔍"}</div>
       </div>
       {open && suggestions.length > 0 && (
-        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, zIndex: 300, marginTop: 4, overflow: "hidden", boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}>
+        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, zIndex: 300, marginTop: 4, overflow: "hidden", boxShadow: "0 8px 28px rgba(0,0,0,0.45)" }}>
           {suggestions.map((s, i) => (
-            <div key={i} onClick={() => { onChange(s); setSuggestions([]); setOpen(false); }}
-              style={{ padding: "10px 12px", cursor: "pointer", fontSize: 13, color: C.text, borderBottom: i < suggestions.length - 1 ? `1px solid ${C.border}` : "none", display: "flex", alignItems: "center", gap: 8 }}
+            <div key={i} onClick={() => { onChange(s.label); setSuggestions([]); setOpen(false); }}
+              style={{ padding: "10px 12px", cursor: "pointer", borderBottom: i < suggestions.length - 1 ? `1px solid ${C.border}` : "none", display: "flex", alignItems: "flex-start", gap: 10 }}
               onMouseOver={e => e.currentTarget.style.background = C.card}
               onMouseOut={e => e.currentTarget.style.background = "transparent"}>
-              <span style={{ fontSize: 14 }}>📍</span>
-              <span>{s}</span>
+              <span style={{ fontSize: 15, marginTop: 1, flexShrink: 0 }}>{poiIcon(s)}</span>
+              <div style={{ minWidth: 0 }}>
+                {s.name
+                  ? <><div style={{ fontSize: 13, fontWeight: 600, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</div>
+                     <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>{s.addr}</div></>
+                  : <div style={{ fontSize: 13, color: C.text }}>{s.addr}</div>
+                }
+              </div>
             </div>
           ))}
         </div>
