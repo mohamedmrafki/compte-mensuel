@@ -544,19 +544,21 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
 
   // Auto-fill prix depuis le tarif de la société
   useEffect(() => {
-    if (!f.company || !f.vehicule || !tarifType) return;
+    if (!f.company || !f.vehicule) return;
     const companyObj = savedCompanies.find(c => c.name.toLowerCase() === f.company.toLowerCase());
     if (!companyObj?.prices) return;
     const vp = companyObj.prices[f.vehicule];
     if (!vp) return;
-    if (tarifType === "aeroport" || tarifType === "paris") {
-      const price = vp[tarifType];
+    // Type explicite choisi par l'utilisateur, sinon auto-détecté
+    const detected = tarifType || (f.prestation === "mad" ? "mad" : isAeroportTrajet(f.prise, f.depose) ? "aeroport" : "paris");
+    if (detected === "aeroport" || detected === "paris") {
+      const price = vp[detected];
       if (price) setF(p => ({ ...p, prestation: "transfert", prixTTC: String(price) }));
-    } else if (tarifType === "mad") {
+    } else if (detected === "mad") {
       const rate = vp.mad;
       if (rate) setF(p => ({ ...p, prestation: "mad", tauxHoraire: String(rate) }));
     }
-  }, [f.company, f.vehicule, tarifType]);
+  }, [f.company, f.vehicule, tarifType, f.prise, f.depose, f.prestation]);
 
   const isOtherDriver = f.chauffeur && f.chauffeur !== defaultChauffeur;
   const companyObj = savedCompanies.find(c => c.name.toLowerCase() === (f.company || "").trim().toLowerCase());
