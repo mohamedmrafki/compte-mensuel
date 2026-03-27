@@ -184,6 +184,70 @@ function ACInput({ label, value, onChange, suggestions, placeholder, icon = "�
   );
 }
 
+// Géolocalisation partagée (lat/lon Paris par défaut)
+const geoRef = { lat: 48.8566, lon: 2.3522 };
+if (navigator.geolocation) {
+  navigator.geolocation.getCurrentPosition(
+    p => { geoRef.lat = p.coords.latitude; geoRef.lon = p.coords.longitude; },
+    () => {}
+  );
+}
+
+function AddressInput({ label, value, onChange, placeholder }) {
+  const [open, setOpen] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const ref = useRef();
+  const timer = useRef();
+
+  useEffect(() => {
+    const h = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  const handleChange = (v) => {
+    onChange(v);
+    clearTimeout(timer.current);
+    if (!v || v.length < 3) { setSuggestions([]); setOpen(false); return; }
+    timer.current = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const url = `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(v)}&limit=6&lat=${geoRef.lat}&lon=${geoRef.lon}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        const items = (data.features || []).map(f => f.properties.label);
+        setSuggestions(items);
+        setOpen(items.length > 0);
+      } catch { setSuggestions([]); }
+      setLoading(false);
+    }, 280);
+  };
+
+  return (
+    <div ref={ref} style={{ position: "relative", display: "flex", flexDirection: "column", gap: 4 }}>
+      {label && <Lbl>{label}</Lbl>}
+      <div style={{ position: "relative" }}>
+        <input value={value || ""} onChange={e => handleChange(e.target.value)} onFocus={() => value && value.length >= 3 && setOpen(suggestions.length > 0)} placeholder={placeholder || "Adresse…"} style={{ ...iBase, paddingRight: loading ? 32 : 13 }} />
+        {loading && <div style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: C.muted }}>⏳</div>}
+      </div>
+      {open && suggestions.length > 0 && (
+        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, zIndex: 300, marginTop: 4, overflow: "hidden", boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}>
+          {suggestions.map((s, i) => (
+            <div key={i} onClick={() => { onChange(s); setSuggestions([]); setOpen(false); }}
+              style={{ padding: "10px 12px", cursor: "pointer", fontSize: 13, color: C.text, borderBottom: i < suggestions.length - 1 ? `1px solid ${C.border}` : "none", display: "flex", alignItems: "center", gap: 8 }}
+              onMouseOver={e => e.currentTarget.style.background = C.card}
+              onMouseOut={e => e.currentTarget.style.background = "transparent"}>
+              <span style={{ fontSize: 14 }}>📍</span>
+              <span>{s}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MonthPickerModal({ year, month, onChange, onClose }) {
   const [y, setY] = useState(year);
   return (
@@ -444,8 +508,17 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
           </div>
         </div>
 
-        <ACInput label="Prise en charge" value={f.prise} onChange={v => set("prise", v)} suggestions={LIEUX} placeholder="Adresse ou lieu (CDG, ORY…)" />
-        <ACInput label="Dépose" value={f.depose} onChange={v => set("depose", v)} suggestions={LIEUX} placeholder="Adresse ou lieu" />
+        <AddressInput label="Prise en charge" value={f.prise} onChange={v => set("prise", v)} placeholder="Adresse ou lieu (CDG, ORY…)" />
+        <div style={{ display: "flex", justifyContent: "center" }}>
+          <button type="button" onClick={() => setF(p => ({ ...p, prise: p.depose, depose: p.prise }))}
+            style={{ background: C.surface, border: `1px solid ${C.border2}`, color: C.muted, borderRadius: 20, padding: "4px 14px", fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, transition: "all 0.15s" }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.color = C.gold; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = C.border2; e.currentTarget.style.color = C.muted; }}
+            title="Inverser prise en charge et dépose">
+            ⇅ Inverser
+          </button>
+        </div>
+        <AddressInput label="Dépose" value={f.depose} onChange={v => set("depose", v)} placeholder="Adresse ou lieu" />
 
         {f.prestation === "transfert" ? (
           <Input label="Prix de base TTC (€)" type="number" value={f.prixTTC} onChange={e => set("prixTTC", e.target.value)} placeholder="0.00" />
