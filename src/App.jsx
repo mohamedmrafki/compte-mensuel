@@ -982,15 +982,26 @@ export default function App() {
     }
     (async () => {
       try {
+        const companiesQuery = profile === "commission"
+          ? supabase.from("companies").select("*").order("name")
+          : supabase.from("companies").select("*").eq("profile", profile).order("name");
         const [companiesRes, chauffeursRes, recurringRes] = await Promise.all([
-          supabase.from("companies").select("*").eq("profile", profile).order("name"),
+          companiesQuery,
           supabase.from("chauffeurs").select("*").eq("profile", profile).order("name"),
           supabase.from("recurring_frais").select("*").eq("profile", profile).order("created_at"),
         ]);
         if (companiesRes.error) throw companiesRes.error;
         if (chauffeursRes.error) throw chauffeursRes.error;
         if (recurringRes.error) throw recurringRes.error;
-        setSavedCompanies(companiesRes.data || []);
+        // Dédoublonner les sociétés par nom (garder le premier trouvé)
+        const allCompanies = companiesRes.data || [];
+        const seen = new Set();
+        const uniqueCompanies = allCompanies.filter(c => {
+          if (seen.has(c.name)) return false;
+          seen.add(c.name);
+          return true;
+        });
+        setSavedCompanies(uniqueCompanies);
         const chData = chauffeursRes.data || [];
         setChauffeurObjects(chData);
         const def = chData.find(c => c.is_default);
