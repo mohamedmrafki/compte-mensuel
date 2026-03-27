@@ -43,11 +43,12 @@ const FRAIS_CATS = ["Essence / Péage","Bureau","Digidom","Assurance","SFR","Sit
 const VEHICULES = ["Classe E","Classe V","Classe S"];
 const SUPPLEMENT_TYPES = ["Attente","Stop supplémentaire","Parking","Péage","Nuit / Dimanche","Bagages","Autre"];
 const AEROPORTS = ["CDG","ORY","LBG"];
-const SOUS_TRAITANT_TARIFS = {
+const SOUS_TRAITANT_TARIFS_DEFAULT = {
   "Classe E": { aeroport: 80, paris: 50, mad: 50 },
   "Classe V": { aeroport: 90, paris: 60, mad: 60 },
   "Classe S": { aeroport: 130, paris: 80, mad: 80 },
 };
+const loadTarifs = () => { try { return JSON.parse(localStorage.getItem("sous_traitant_tarifs")) || SOUS_TRAITANT_TARIFS_DEFAULT; } catch { return SOUS_TRAITANT_TARIFS_DEFAULT; } };
 const isAeroportTrajet = (prise, depose) => AEROPORTS.some(a => (prise || "").toUpperCase().includes(a) || (depose || "").toUpperCase().includes(a));
 
 const PROFILES = [
@@ -419,7 +420,7 @@ function SupplementsEditor({ supplements, onChange }) {
 }
 
 // ── PDF ───────────────────────────────────────────────────────────────────────
-function generateRecapHTML({ year, month, courses, frais, savedCompanies, defaultChauffeur }) {
+function generateRecapHTML({ year, month, courses, frais, savedCompanies, defaultChauffeur, profile }) {
   const mk = monthKey(year, month);
   const mc = courses[mk] || [];
   const mf = frais[mk] || [];
@@ -428,6 +429,8 @@ function generateRecapHTML({ year, month, courses, frais, savedCompanies, defaul
   const totalFrais = mf.reduce((s, f) => s + Number(f.amount || 0), 0);
   const totalTips = mc.reduce((s, c) => s + Number(c.tips || 0), 0);
   const totalCC = mc.reduce((s, c) => s + Number(c.chauffeurCost || 0), 0);
+  const isCommission = profile === "commission";
+  const margeCommission = totalCA - totalCC;
   const byCompany = {};
   mc.filter(c => c.company && !c.isPrivate).forEach(c => { if (!byCompany[c.company]) byCompany[c.company] = []; byCompany[c.company].push(c); });
   const privateTrips = mc.filter(c => c.isPrivate);
@@ -479,10 +482,17 @@ tbody tr:nth-child(even){background:#f8f7f2}td{padding:8px;border-bottom:1px sol
 <div class="hdr"><div><h1>Récapitulatif mensuel</h1><p style="font-size:15px;font-weight:600;color:#C8A45A;margin-top:4px;text-transform:capitalize">${label}</p><p style="font-size:11px;color:#888;margin-top:2px">Généré le ${new Date().toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"})}</p></div></div>
 <div class="stats">
   <div class="sbox"><div class="slbl">CA Brut</div><div class="sval gold">${fmtNum(totalCA)} €</div></div>
+  ${isCommission ? `
+  <div class="sbox"><div class="slbl">Chauffeurs</div><div class="sval blue">${fmtNum(totalCC)} €</div></div>
+  <div class="sbox"><div class="slbl">Marge nette</div><div class="sval green">${fmtNum(margeCommission)} €</div></div>
+  <div class="sbox"><div class="slbl">Part Oumar</div><div class="sval green">${fmtNum(margeCommission/2)} €</div></div>
+  <div class="sbox"><div class="slbl">Part Mohamed</div><div class="sval green">${fmtNum(margeCommission/2)} €</div></div>
+  ` : `
   <div class="sbox"><div class="slbl">Pourboires</div><div class="sval green">${fmtNum(totalTips)} €</div></div>
   <div class="sbox"><div class="slbl">Frais</div><div class="sval red">${fmtNum(totalFrais)} €</div></div>
   <div class="sbox"><div class="slbl">Chauffeurs</div><div class="sval blue">${fmtNum(totalCC)} €</div></div>
   <div class="sbox"><div class="slbl">Net</div><div class="sval ${totalCA-totalFrais-totalCC>=0?"green":"red"}">${fmtNum(totalCA-totalFrais-totalCC)} €</div></div>
+  `}
 </div>
 ${Object.keys(byVehicle).length>0?`<p class="sectitle">🚗 Par gamme</p><div class="sec"><table><thead><tr><th>Véhicule</th><th>Nb courses</th><th>CA Total</th></tr></thead><tbody>${Object.entries(byVehicle).map(([v,d])=>`<tr><td><b>${v}</b></td><td>${d.trips}</td><td class="amount">${fmtNum(d.ca)} €</td></tr>`).join("")}</tbody></table></div>`:""}
 ${Object.keys(byCompany).length>0?`<p class="sectitle">🏢 À facturer par société</p>${Object.entries(byCompany).map(([name,trips])=>{const info=savedCompanies.find(c=>c.name.toLowerCase()===name.toLowerCase());const total=trips.reduce((s,c)=>s+Number(c.total||0),0);return`<div class="sec pb"><div class="sechdr"><div><h2>${name}</h2>${info?.adresse?`<p class="info">📍 ${info.adresse}</p>`:""}${info?.email?`<p class="info">✉️ ${info.email}</p>`:""}${info?.siren?`<p class="info">SIREN : ${info.siren}</p>`:""}${info?.tva?`<p class="info">TVA : ${info.tva}</p>`:""}</div><div class="badge">${fmtNum(total)} €</div></div><table><thead><tr><th>Date</th><th>Heure</th><th>Client</th><th>Prestation</th><th>Véhicule</th><th>Trajet</th><th>Chauffeur</th><th>Base</th><th>Total TTC</th></tr></thead><tbody>${tripRows(trips)}</tbody><tfoot><tr><td colspan="8" style="text-align:right;font-weight:700">Total</td><td class="amount tr">${fmtNum(total)} €</td></tr></tfoot></table></div>`;}).join("")}`:""}
@@ -490,6 +500,35 @@ ${privateTrips.length>0?`<p class="sectitle">💵 Courses privées</p><div class
 ${Object.keys(byChauffeur).length>0?`<p class="sectitle">🧑‍✈️ Récapitulatif chauffeurs</p>${Object.entries(byChauffeur).map(([name,d])=>`<div class="sec"><div class="sechdr"><div><h2>${name}</h2><p class="info">${d.trips.length} course${d.trips.length>1?"s":""} · CA : ${fmtNum(d.ca)} €</p></div><div class="badge orange">À payer : ${fmtNum(d.cost)} €</div></div><table><thead><tr><th>Date</th><th>Heure</th><th>Client</th><th>Prestation</th><th>Véhicule</th><th>Trajet</th><th>Tarif</th><th>CA</th><th>À payer</th></tr></thead><tbody>${d.trips.map(c=>`<tr><td>${fd(c.date)}</td><td>${c.heure||"—"}</td><td>${c.client||"—"}</td><td>${c.prestation==="mad"?"MAD":"Transfert"}</td><td>${c.vehicule||"—"}</td><td>${[c.prise,c.depose].filter(Boolean).join(" → ")||"—"}</td><td>${c.prestation==="mad"&&c.chauffeurHourlyRate?`${fmtNum(c.chauffeurHourlyRate)}€/h × ${c.nbHeures}h`:"Forfait"}</td><td class="amount">${fmtNum(c.total)} €</td><td class="amount" style="color:#c05a00;font-weight:700">${fmtNum(c.chauffeurCost)} €</td></tr>`).join("")}</tbody><tfoot><tr><td colspan="7" style="text-align:right;font-weight:700">Total à payer à ${name}</td><td class="amount tr">${fmtNum(d.ca)} €</td><td class="amount" style="color:#c05a00;font-weight:800">${fmtNum(d.cost)} €</td></tr></tfoot></table></div>`).join("")}`:""}
 ${mf.length>0?`<p class="sectitle">💸 Frais</p><div class="sec"><table><thead><tr><th>Date</th><th>Catégorie</th><th>Détail</th><th>Montant</th></tr></thead><tbody>${mf.map(f=>`<tr><td>${fd(f.date)}</td><td>${f.category}</td><td>${f.notes||"—"}</td><td class="amount">${fmtNum(f.amount)} €</td></tr>`).join("")}</tbody><tfoot><tr><td colspan="3" style="text-align:right;font-weight:700">Total</td><td class="amount tr">${fmtNum(totalFrais)} €</td></tr></tfoot></table></div>`:""}
 </body></html>`;
+}
+
+// ── Modal Grille Tarifaire ─────────────────────────────────────────────────────
+function TarifsModal({ tarifs, onSave, onClose }) {
+  const [t, setT] = useState(JSON.parse(JSON.stringify(tarifs)));
+  const set = (v, k, val) => setT(p => ({ ...p, [v]: { ...p[v], [k]: val } }));
+  return (
+    <Modal title="⚙️ Grille tarifaire sous-traitants" onClose={onClose}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "80px 1fr 1fr 1fr", gap: 8, alignItems: "center" }}>
+          <div />
+          {["✈️ Aéroport", "🗼 Paris/Gare", "⏱ MAD/h"].map(l => (
+            <div key={l} style={{ fontSize: 11, color: C.muted, fontWeight: 700, textAlign: "center", textTransform: "uppercase", letterSpacing: 1 }}>{l}</div>
+          ))}
+          {VEHICULES.map(v => (
+            <>
+              <div key={v+"lbl"} style={{ fontSize: 12, fontWeight: 700, color: vColor(v) }}>{vIcon(v)} {v.replace("Classe ","")}</div>
+              {["aeroport","paris","mad"].map(k => (
+                <input key={k} type="number" value={t[v]?.[k] ?? ""} onChange={e => set(v, k, e.target.value)}
+                  style={{ ...iBase, textAlign: "center" }} />
+              ))}
+            </>
+          ))}
+        </div>
+        <div style={{ fontSize: 11, color: C.muted }}>Les tarifs MAD sont en €/heure.</div>
+        <Btn onClick={() => { onSave(t); onClose(); }}>Enregistrer</Btn>
+      </div>
+    </Modal>
+  );
 }
 
 // ── Modal Course ──────────────────────────────────────────────────────────────
@@ -517,7 +556,7 @@ function computeChauffeurCost(f) {
   return "";
 }
 
-function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, savedChauffeurs, onSaveChauffeur, defaultChauffeur }) {
+function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, savedChauffeurs, onSaveChauffeur, defaultChauffeur, sousTraitantTarifs }) {
   const [f, setF] = useState(() => initial ? { supplements: [], ...initial } : defCourse(defaultChauffeur));
   const [tarifType, setTarifType] = useState(() => initial?.prestation === "mad" ? "mad" : null);
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
@@ -531,7 +570,7 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
   useEffect(() => {
     const isOther = f.chauffeur && f.chauffeur !== defaultChauffeur;
     if (!isOther || !f.vehicule) return;
-    const tarifs = SOUS_TRAITANT_TARIFS[f.vehicule];
+    const tarifs = (sousTraitantTarifs || loadTarifs())[f.vehicule];
     if (!tarifs) return;
     if (f.prestation === "transfert") {
       const isAero = isAeroportTrajet(f.prise, f.depose);
@@ -688,7 +727,7 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
           <div style={{ background: `${C.orange}12`, border: `2px solid ${C.orange}55`, borderRadius: 12, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ fontSize: 12, color: C.orange, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>💰 Tarif payé à {f.chauffeur}</div>
-              {SOUS_TRAITANT_TARIFS[f.vehicule] && <span style={{ fontSize: 11, color: C.green, background: `${C.green}18`, borderRadius: 6, padding: "2px 8px" }}>Grille auto</span>}
+              {(sousTraitantTarifs || loadTarifs())[f.vehicule] && <span style={{ fontSize: 11, color: C.green, background: `${C.green}18`, borderRadius: 6, padding: "2px 8px" }}>Grille auto</span>}
             </div>
             {f.prestation === "transfert" ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -732,6 +771,14 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
           </div>
           <textarea value={f.notes} onChange={e => set("notes", e.target.value)} placeholder="Informations supplémentaires…" style={{ ...iBase, resize: "vertical", minHeight: 56 }} />
         </div>
+        {isOtherDriver && Number(f.total) > 0 && (
+          (f.prestation === "transfert" && Number(f.chauffeurFlatRate) > Number(f.total)) ||
+          (f.prestation === "mad" && Number(f.chauffeurHourlyRate) * Number(f.nbHeures) > Number(f.total))
+        ) && (
+          <div style={{ background: `${C.red}18`, border: `1px solid ${C.red}55`, borderRadius: 10, padding: "10px 14px", fontSize: 13, color: C.red, fontWeight: 600 }}>
+            ⚠️ Marge négative — vous payez plus que le prix client !
+          </div>
+        )}
         <Btn onClick={() => valid && onSave(f)} style={{ marginTop: 4 }}>{initial ? "Enregistrer" : "Ajouter la course"}</Btn>
         {!valid && <div style={{ fontSize: 12, color: C.muted, textAlign: "center" }}>Date et prix requis</div>}
       </div>
@@ -820,16 +867,27 @@ function CompanyInfoModal({ initial, onSave, onClose }) {
     const base = initial ? { ...initial } : defCompany();
     const prices = { ...defPrices(), ...(base.prices || {}) };
     VEHICULES.forEach(v => { prices[v] = { aeroport: "", paris: "", mad: "", ...(prices[v] || {}) }; });
-    return { ...base, prices };
+    return { adresse: "", email: "", siren: "", tva: "", ...base, prices };
   });
+  const [activeTab, setActiveTab] = useState("tarifs");
   const setPrice = (v, t, val) => setF(p => ({ ...p, prices: { ...p.prices, [v]: { ...p.prices[v], [t]: val } } }));
   const vColor = v => v === "Classe E" ? C.blue : v === "Classe V" ? C.purple : C.teal;
   const vIcon  = v => v === "Classe E" ? "🚙" : v === "Classe V" ? "🚐" : "🚗";
+  const tabStyle = (t) => ({
+    flex: 1, padding: "8px 0", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 600, fontSize: 13,
+    background: activeTab === t ? C.gold : C.surface,
+    color: activeTab === t ? C.bg : C.muted,
+    transition: "all 0.15s",
+  });
   return (
     <Modal title={f.name || "Nouvelle société"} onClose={onClose}>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <Input label="Nom de la société *" value={f.name} onChange={e => setF(p => ({ ...p, name: e.target.value }))} placeholder="Ex: Foobar SAS" />
-        {VEHICULES.map(v => (
+        <div style={{ display: "flex", gap: 6, background: C.surface, borderRadius: 10, padding: 4 }}>
+          <button style={tabStyle("tarifs")} onClick={() => setActiveTab("tarifs")}>💶 Tarifs</button>
+          <button style={tabStyle("facturation")} onClick={() => setActiveTab("facturation")}>🧾 Info facturation</button>
+        </div>
+        {activeTab === "tarifs" && VEHICULES.map(v => (
           <div key={v} style={{ background: C.surface, border: `1px solid ${vColor(v)}33`, borderRadius: 12, padding: 14 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: vColor(v), textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>{vIcon(v)} {v}</div>
             {TARIF_TYPES.map(t => (
@@ -841,6 +899,14 @@ function CompanyInfoModal({ initial, onSave, onClose }) {
             ))}
           </div>
         ))}
+        {activeTab === "facturation" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Input label="Adresse" value={f.adresse || ""} onChange={e => setF(p => ({ ...p, adresse: e.target.value }))} placeholder="Ex: 12 rue de la Paix, 75001 Paris" />
+            <Input label="Email de facturation" value={f.email || ""} onChange={e => setF(p => ({ ...p, email: e.target.value }))} placeholder="facturation@société.fr" />
+            <Input label="SIREN" value={f.siren || ""} onChange={e => setF(p => ({ ...p, siren: e.target.value }))} placeholder="123 456 789" />
+            <Input label="N° TVA intracommunautaire" value={f.tva || ""} onChange={e => setF(p => ({ ...p, tva: e.target.value }))} placeholder="FR12 345678901" />
+          </div>
+        )}
         <Btn onClick={() => f.name.trim() && onSave(f)}>Enregistrer</Btn>
       </div>
     </Modal>
@@ -983,6 +1049,12 @@ export default function App() {
   const [objectifCA, setObjectifCA] = useState(() => Number(localStorage.getItem(`objectif_${profile || ""}`) || 0));
   const [showObjectifInput, setShowObjectifInput] = useState(false);
   const [objectifInputVal, setObjectifInputVal] = useState("");
+  const [sousTraitantTarifs, setSousTraitantTarifs] = useState(loadTarifs);
+  const [showTarifsModal, setShowTarifsModal] = useState(false);
+  const [annualData, setAnnualData] = useState(null);
+  const [annualLoading, setAnnualLoading] = useState(false);
+  const [searchSocietes, setSearchSocietes] = useState("");
+  const [chauffeurPaid, setChauffeurPaid] = useState(() => { try { return JSON.parse(localStorage.getItem("chauffeur_paid") || "{}"); } catch { return {}; } });
 
   const mk = monthKey(year, month);
   const savedChauffeurs = chauffeurObjects.map(c => c.name);
@@ -1261,6 +1333,52 @@ export default function App() {
   const recurringCount = recurringFrais.filter(r => r.active).length;
   const monthRecurringTotal = recurringFrais.filter(r => r.active && r.amount).reduce((s, r) => s + Number(r.amount || 0), 0);
 
+  // ── Grille tarifaire ────────────────────────────────────────────────────────
+  const saveTarifs = (t) => {
+    const saved = {};
+    VEHICULES.forEach(v => { saved[v] = { aeroport: Number(t[v]?.aeroport || 0), paris: Number(t[v]?.paris || 0), mad: Number(t[v]?.mad || 0) }; });
+    localStorage.setItem("sous_traitant_tarifs", JSON.stringify(saved));
+    setSousTraitantTarifs(saved);
+  };
+
+  // ── Statut paiement chauffeur ────────────────────────────────────────────────
+  const toggleChauffeurPaid = (name) => {
+    const key = `${profile}_${mk}_${name}`;
+    const updated = { ...chauffeurPaid, [key]: !chauffeurPaid[key] };
+    localStorage.setItem("chauffeur_paid", JSON.stringify(updated));
+    setChauffeurPaid(updated);
+  };
+  const isChauffeurPaid = (name) => !!chauffeurPaid[`${profile}_${mk}_${name}`];
+
+  // ── Données annuelles ────────────────────────────────────────────────────────
+  const loadAnnualData = async () => {
+    if (!profile || DEMO_MODE) return;
+    setAnnualLoading(true);
+    try {
+      const queries = [
+        supabase.from("courses").select("total,chauffeur_cost,month_key,tips").like("month_key", `${year}-%`).eq("profile", profile),
+        supabase.from("frais").select("amount,month_key").like("month_key", `${year}-%`).eq("profile", profile),
+      ];
+      if (profile !== "commission") {
+        queries.push(supabase.from("courses").select("total,chauffeur_cost,month_key").like("month_key", `${year}-%`).eq("profile", "commission"));
+      }
+      const [cRes, fRes, commRes] = await Promise.all(queries);
+      const byMonth = {};
+      for (let m = 1; m <= 12; m++) {
+        const mk2 = `${year}-${String(m).padStart(2,"0")}`;
+        byMonth[mk2] = { ca: 0, tips: 0, frais: 0, cc: 0, commMarge: 0 };
+      }
+      (cRes.data || []).forEach(r => {
+        if (byMonth[r.month_key]) { byMonth[r.month_key].ca += Number(r.total || 0); byMonth[r.month_key].cc += Number(r.chauffeur_cost || 0); byMonth[r.month_key].tips += Number(r.tips || 0); }
+      });
+      (fRes.data || []).forEach(r => { if (byMonth[r.month_key]) byMonth[r.month_key].frais += Number(r.amount || 0); });
+      if (commRes) {
+        (commRes.data || []).forEach(r => { if (byMonth[r.month_key]) byMonth[r.month_key].commMarge += Number(r.total || 0) - Number(r.chauffeur_cost || 0); });
+      }
+      setAnnualData(byMonth);
+    } finally { setAnnualLoading(false); }
+  };
+
   // ── Statuts factures ────────────────────────────────────────────────────────
   const setInvoiceStatus = async (companyName, status) => {
     const key = `${mk}:${companyName}`;
@@ -1276,7 +1394,7 @@ export default function App() {
     const coursesDict = { [mk]: courses };
     const fraisDict = { [mk]: frais };
     const w = window.open("", "_blank");
-    w.document.write(generateRecapHTML({ year, month, courses: coursesDict, frais: fraisDict, savedCompanies, defaultChauffeur }));
+    w.document.write(generateRecapHTML({ year, month, courses: coursesDict, frais: fraisDict, savedCompanies, defaultChauffeur, profile }));
     w.document.close();
     setTimeout(() => w.print(), 500);
   };
@@ -1322,10 +1440,10 @@ export default function App() {
           </div>
         </div>
         <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 2, WebkitOverflowScrolling: "touch" }}>
-          {[["dashboard","📊 Résumé"],["courses","🚗 Courses"],["chauffeurs","🧑‍✈️ Chauffeurs"],["frais","💸 Frais"],["societes","🏢 Sociétés"]]
+          {[["dashboard","📊 Résumé"],["courses","🚗 Courses"],["chauffeurs","🧑‍✈️ Chauffeurs"],["frais","💸 Frais"],["societes","🏢 Sociétés"],["annuel","📅 Année"]]
             .filter(([id]) => profile !== "commission" || (id !== "frais" && id !== "chauffeurs"))
             .map(([id, lbl]) => (
-              <Pill key={id} label={lbl} active={tab === id} onClick={() => setTab(id)} />
+              <Pill key={id} label={lbl} active={tab === id} onClick={() => { setTab(id); if (id === "annuel" && !annualData) loadAnnualData(); }} />
             ))}
         </div>
       </div>
@@ -1538,7 +1656,10 @@ export default function App() {
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: C.muted }}>Récap – {MOIS[month]} {year}</div>
-                  <Btn small onClick={exportPDF} style={{ background: `${C.gold}18`, color: C.gold, border: `1px solid ${C.gold}44` }}>📄 PDF</Btn>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <Btn small onClick={() => setShowTarifsModal(true)} style={{ background: C.surface, color: C.teal, border: `1px solid ${C.teal}44` }}>⚙️ Grille</Btn>
+                    <Btn small onClick={exportPDF} style={{ background: `${C.gold}18`, color: C.gold, border: `1px solid ${C.gold}44` }}>📄 PDF</Btn>
+                  </div>
                 </div>
                 {(() => {
                   const ownTrips = mc.filter(c => c.chauffeur === defaultChauffeur || !c.chauffeur);
@@ -1563,7 +1684,7 @@ export default function App() {
                 {Object.keys(byChauffeur).length === 0
                   ? <div style={{ textAlign: "center", padding: 24, color: C.muted }}><div style={{ fontSize: 32 }}>🧑‍✈️</div><div style={{ marginTop: 6 }}>Aucun autre chauffeur ce mois</div></div>
                   : Object.entries(byChauffeur).map(([name, d]) => (
-                    <Card key={name} style={{ borderColor: `${C.orange}44` }}>
+                    <Card key={name} style={{ borderColor: isChauffeurPaid(name) ? `${C.green}55` : `${C.orange}44` }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                         <div><div style={{ fontWeight: 700, fontSize: 16 }}>🧑‍✈️ {name}</div><div style={{ fontSize: 12, color: C.orange }}>Chauffeur externe</div></div>
                         <div style={{ textAlign: "right" }}><div style={{ fontSize: 11, color: C.muted }}>CA généré</div><div style={{ fontWeight: 700, fontSize: 16, color: C.gold, fontFamily: "monospace" }}>{fmt(d.ca)}</div></div>
@@ -1572,6 +1693,9 @@ export default function App() {
                         <div style={{ flex: 1, background: C.surface, borderRadius: 8, padding: "10px 12px" }}><div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: 1 }}>À payer</div><div style={{ fontSize: 18, fontWeight: 800, color: C.orange, fontFamily: "monospace" }}>{fmt(d.cost)}</div></div>
                         <div style={{ flex: 1, background: C.surface, borderRadius: 8, padding: "10px 12px" }}><div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: 1 }}>Marge</div><div style={{ fontSize: 18, fontWeight: 800, color: d.ca - d.cost >= 0 ? C.green : C.red, fontFamily: "monospace" }}>{fmt(d.ca - d.cost)}</div></div>
                       </div>
+                      <button onClick={() => toggleChauffeurPaid(name)} style={{ width: "100%", padding: "10px 0", borderRadius: 10, border: `2px solid ${isChauffeurPaid(name) ? C.green : C.orange}`, background: isChauffeurPaid(name) ? `${C.green}18` : `${C.orange}12`, color: isChauffeurPaid(name) ? C.green : C.orange, fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 12 }}>
+                        {isChauffeurPaid(name) ? "✅ Payé ce mois" : "⏳ Marquer comme payé"}
+                      </button>
                       <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 8, display: "flex", flexDirection: "column", gap: 7 }}>
                         {d.trips.map(c => (
                           <div key={c.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
@@ -1731,8 +1855,9 @@ export default function App() {
                     <div style={{ fontSize: 13, fontWeight: 700, color: C.muted }}>Sociétés mémorisées ({savedCompanies.length})</div>
                     <Btn small onClick={() => setEditCompany(defCompany())}>+ Ajouter</Btn>
                   </div>
+                  {savedCompanies.length > 3 && <input value={searchSocietes} onChange={e => setSearchSocietes(e.target.value)} placeholder="🔍 Rechercher une société…" style={{ ...iBase, fontSize: 13, marginBottom: 8 }} />}
                   {savedCompanies.length === 0 && <div style={{ color: C.muted, fontSize: 13, textAlign: "center", padding: "16px 0" }}>Aucune société mémorisée</div>}
-                  {savedCompanies.map(c => (
+                  {savedCompanies.filter(c => !searchSocietes || c.name.toLowerCase().includes(searchSocietes.toLowerCase())).map(c => (
                     <Card key={c.id} style={{ marginBottom: 8 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                         <div style={{ flex: 1 }}><div style={{ fontWeight: 600, fontSize: 14 }}>{c.name}</div>{c.adresse && <div style={{ fontSize: 12, color: C.muted }}>📍 {c.adresse}</div>}{c.email && <div style={{ fontSize: 12, color: C.muted }}>✉️ {c.email}</div>}{c.siren && <div style={{ fontSize: 12, color: C.muted }}>SIREN : {c.siren}</div>}{c.tva && <div style={{ fontSize: 12, color: C.muted }}>TVA : {c.tva}</div>}</div>
@@ -1743,6 +1868,74 @@ export default function App() {
                 </div>
               </div>
             )}
+
+            {/* ANNUEL */}
+            {tab === "annuel" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.muted }}>Bilan {year}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <button onClick={() => { setAnnualData(null); setYear(y => y - 1); }} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted, borderRadius: 8, width: 30, height: 30, cursor: "pointer", fontSize: 16 }}>‹</button>
+                    <span style={{ fontSize: 16, fontWeight: 800, color: C.gold }}>{year}</span>
+                    <button onClick={() => { setAnnualData(null); setYear(y => y + 1); }} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted, borderRadius: 8, width: 30, height: 30, cursor: "pointer", fontSize: 16 }}>›</button>
+                    <Btn small onClick={() => { setAnnualData(null); loadAnnualData(); }} style={{ background: C.surface, color: C.teal, border: `1px solid ${C.teal}44` }}>↺</Btn>
+                  </div>
+                </div>
+                {annualLoading && <div style={{ textAlign: "center", padding: 40, color: C.muted }}><div style={{ fontSize: 32 }}>⏳</div><div style={{ marginTop: 8 }}>Chargement…</div></div>}
+                {!annualLoading && annualData && (() => {
+                  const months = Object.entries(annualData);
+                  const totalCA = months.reduce((s, [, d]) => s + d.ca, 0);
+                  const totalFraisA = months.reduce((s, [, d]) => s + d.frais, 0);
+                  const totalCC = months.reduce((s, [, d]) => s + d.cc, 0);
+                  const totalTipsA = months.reduce((s, [, d]) => s + d.tips, 0);
+                  const totalCommMarge = months.reduce((s, [, d]) => s + d.commMarge, 0);
+                  const totalNet = totalCA - totalFraisA - totalCC;
+                  const isComm = profile === "commission";
+                  return (
+                    <>
+                      {/* Totaux annuels */}
+                      <Card style={{ borderColor: `${C.gold}44` }}>
+                        <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Total {year}</div>
+                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: 1 }}>CA Brut</div><div style={{ fontSize: 22, fontWeight: 800, color: C.gold, fontFamily: "monospace" }}>{fmt(totalCA)}</div></div>
+                          {!isComm && <><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: 1 }}>Frais</div><div style={{ fontSize: 22, fontWeight: 800, color: C.red, fontFamily: "monospace" }}>{fmt(totalFraisA)}</div></div>
+                          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: 1 }}>Net</div><div style={{ fontSize: 22, fontWeight: 800, color: totalNet >= 0 ? C.green : C.red, fontFamily: "monospace" }}>{fmt(totalNet)}</div></div></>}
+                          {!isComm && totalCommMarge > 0 && <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 10, color: C.green, textTransform: "uppercase", letterSpacing: 1 }}>Part commissions</div><div style={{ fontSize: 22, fontWeight: 800, color: C.green, fontFamily: "monospace" }}>{fmt(totalCommMarge / 2)}</div></div>}
+                          {isComm && <><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 10, color: C.green, textTransform: "uppercase", letterSpacing: 1 }}>Marge</div><div style={{ fontSize: 22, fontWeight: 800, color: C.green, fontFamily: "monospace" }}>{fmt(totalCA - totalCC)}</div></div>
+                          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 10, color: C.blue, textTransform: "uppercase", letterSpacing: 1 }}>Part / pers.</div><div style={{ fontSize: 22, fontWeight: 800, color: C.blue, fontFamily: "monospace" }}>{fmt((totalCA - totalCC) / 2)}</div></div></>}
+                        </div>
+                        {!isComm && totalTipsA > 0 && <div style={{ fontSize: 12, color: C.green, marginTop: 8 }}>+ {fmt(totalTipsA)} de pourboires</div>}
+                      </Card>
+                      {/* Mois */}
+                      {months.map(([mk2, d]) => {
+                        const mIdx = Number(mk2.split("-")[1]) - 1;
+                        const net = d.ca - d.frais - d.cc;
+                        const marge = d.ca - d.cc;
+                        const hasData = d.ca > 0 || d.frais > 0;
+                        return (
+                          <Card key={mk2} style={{ opacity: hasData ? 1 : 0.45 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                              <div>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: C.text, textTransform: "capitalize" }}>{MOIS[mIdx]}</div>
+                                {hasData && !isComm && <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Net : <span style={{ color: net >= 0 ? C.green : C.red, fontWeight: 700 }}>{fmt(net)}</span>{d.commMarge > 0 && <span style={{ color: C.green }}> + {fmt(d.commMarge / 2)} comm.</span>}</div>}
+                                {hasData && isComm && <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Part/pers : <span style={{ color: C.green, fontWeight: 700 }}>{fmt(marge / 2)}</span></div>}
+                                {!hasData && <div style={{ fontSize: 11, color: C.muted }}>Aucune donnée</div>}
+                              </div>
+                              <div style={{ textAlign: "right" }}>
+                                <div style={{ fontSize: 18, fontWeight: 800, color: C.gold, fontFamily: "monospace" }}>{hasData ? fmt(d.ca) : "—"}</div>
+                                {d.frais > 0 && !isComm && <div style={{ fontSize: 11, color: C.red, fontFamily: "monospace" }}>−{fmt(d.frais)} frais</div>}
+                              </div>
+                            </div>
+                          </Card>
+                        );
+                      })}
+                    </>
+                  );
+                })()}
+                {!annualLoading && !annualData && !DEMO_MODE && <div style={{ textAlign: "center", padding: 40, color: C.muted }}><div style={{ fontSize: 40 }}>📅</div><div style={{ marginTop: 8 }}>Cliquez ↺ pour charger les données</div></div>}
+                {DEMO_MODE && <div style={{ textAlign: "center", padding: 24, color: C.muted, fontSize: 13 }}>Vue annuelle indisponible en mode démo.</div>}
+              </div>
+            )}
           </>
         )}
       </div>
@@ -1750,10 +1943,11 @@ export default function App() {
       {/* Modales */}
       {showRecurringModal && <RecurringFraisModal recurringFrais={recurringFrais} onSave={handleSaveRecurring} onClose={() => setShowRecurringModal(false)} />}
       {showMonthPicker && <MonthPickerModal year={year} month={month} onChange={(y, m) => { setYear(y); setMonth(m); }} onClose={() => setShowMonthPicker(false)} />}
-      {(showCourseModal || editCourse) && <CourseModal initial={editCourse} onSave={saveCourse} onClose={() => { setShowCourseModal(false); setEditCourse(null); }} savedCompanies={savedCompanies} onSaveCompany={handleSaveCompany} savedChauffeurs={savedChauffeurs} onSaveChauffeur={handleSaveChauffeur} defaultChauffeur={defaultChauffeur} />}
+      {(showCourseModal || editCourse) && <CourseModal initial={editCourse} onSave={saveCourse} onClose={() => { setShowCourseModal(false); setEditCourse(null); }} savedCompanies={savedCompanies} onSaveCompany={handleSaveCompany} savedChauffeurs={savedChauffeurs} onSaveChauffeur={handleSaveChauffeur} defaultChauffeur={defaultChauffeur} sousTraitantTarifs={sousTraitantTarifs} />}
       {(showFraisModal || editFrais) && <FraisModal initial={editFrais} onSave={saveFrais} onClose={() => { setShowFraisModal(false); setEditFrais(null); }} />}
       {editCompany && <CompanyInfoModal initial={editCompany} onSave={handleSaveCompany} onClose={() => setEditCompany(null)} />}
       {showChauffeurSettings && <ChauffeurSettingsModal savedChauffeurs={savedChauffeurs} defaultChauffeur={defaultChauffeur} onSetDefault={handleSetDefault} onAdd={handleSaveChauffeur} onDelete={handleDeleteChauffeur} onClose={() => setShowChauffeurSettings(false)} />}
+      {showTarifsModal && <TarifsModal tarifs={sousTraitantTarifs} onSave={saveTarifs} onClose={() => setShowTarifsModal(false)} />}
 
       {/* Bouton flottant + */}
       {tab === "courses" && !showCourseModal && !editCourse && <button onClick={() => setShowCourseModal(true)} style={{ position: "fixed", bottom: 24, right: 24, width: 54, height: 54, borderRadius: "50%", background: C.gold, border: "none", cursor: "pointer", fontSize: 24, color: C.bg, fontWeight: 700, boxShadow: `0 4px 20px ${C.gold}55`, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>}
