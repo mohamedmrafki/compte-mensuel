@@ -556,7 +556,7 @@ function computeChauffeurCost(f) {
   return "";
 }
 
-function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, savedChauffeurs, onSaveChauffeur, defaultChauffeur, sousTraitantTarifs, savedClients }) {
+function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, savedChauffeurs, onSaveChauffeur, defaultChauffeur, sousTraitantTarifs, savedClients, onSaveClient }) {
   const [f, setF] = useState(() => initial ? { supplements: [], ...initial } : defCourse(defaultChauffeur));
   const [tarifType, setTarifType] = useState(() => initial?.prestation === "mad" ? "mad" : null);
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
@@ -602,6 +602,7 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
   const isOtherDriver = f.chauffeur && f.chauffeur !== defaultChauffeur;
   const companyObj = savedCompanies.find(c => c.name.toLowerCase() === (f.company || "").trim().toLowerCase());
   const companyOk = !!companyObj;
+  const clientOk = !!(savedClients || []).some(c => [c.prenom, c.nom].filter(Boolean).join(" ").toLowerCase() === (f.client || "").trim().toLowerCase());
   const chauffeurSaved = savedChauffeurs.some(c => c.toLowerCase() === (f.chauffeur || "").trim().toLowerCase());
   const valid = f.date && Number(f.total) > 0;
   const supTotal = (f.supplements || []).reduce((s, x) => s + Number(x.amount || 0), 0);
@@ -615,11 +616,13 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
           <Input label="Heure" type="time" value={f.heure} onChange={e => set("heure", e.target.value)} style={{ flex: 1 }} />
         </div>
 
-        {/* Société en premier */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <input type="checkbox" id="priv" checked={f.isPrivate} onChange={e => { set("isPrivate", e.target.checked); if (e.target.checked) { set("company", ""); setTarifType(null); } }} />
-          <label htmlFor="priv" style={{ color: C.text, fontSize: 14, cursor: "pointer" }}>Client direct – encaissement direct</label>
+        {/* Toggle Société / Client direct */}
+        <div style={{ display: "flex", gap: 6, background: C.surface, borderRadius: 10, padding: 4 }}>
+          <button onClick={() => { set("isPrivate", false); }} style={{ flex: 1, padding: "10px 6px", borderRadius: 8, border: `2px solid ${!f.isPrivate ? C.blue : "transparent"}`, background: !f.isPrivate ? `${C.blue}18` : "transparent", color: !f.isPrivate ? C.blue : C.muted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>🏢 Société</button>
+          <button onClick={() => { set("isPrivate", true); set("company", ""); setTarifType(null); }} style={{ flex: 1, padding: "10px 6px", borderRadius: 8, border: `2px solid ${f.isPrivate ? C.gold : "transparent"}`, background: f.isPrivate ? `${C.gold}18` : "transparent", color: f.isPrivate ? C.gold : C.muted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>👤 Client direct</button>
         </div>
+
+        {/* Société */}
         {!f.isPrivate && (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <ACInput label="Société / Plateforme" value={f.company} onChange={v => { set("company", v); setTarifType(null); }} suggestions={savedCompanies.map(c => c.name)} placeholder="Nom de la société…" icon="🏢" />
@@ -627,8 +630,16 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
             {companyOk && <div style={{ fontSize: 12, color: C.green }}>✓ Société mémorisée</div>}
           </div>
         )}
-        {f.isPrivate && savedClients && savedClients.length > 0 && (
-          <ACInput label="Client enregistré (optionnel)" value={f.client} onChange={v => set("client", v)} suggestions={savedClients.map(c => [c.prenom, c.nom].filter(Boolean).join(" "))} placeholder="Sélectionner ou saisir…" icon="👤" />
+
+        {/* Client direct */}
+        {f.isPrivate && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <ACInput label="Nom du client" value={f.client} onChange={v => set("client", v)} suggestions={(savedClients || []).map(c => [c.prenom, c.nom].filter(Boolean).join(" "))} placeholder="Ex: Jean Dupont" icon="👤" />
+            {f.client?.trim() && !clientOk && (
+              <button onClick={() => onSaveClient && onSaveClient(f.client.trim())} style={{ background: "none", border: "none", color: C.gold, cursor: "pointer", fontSize: 13, textAlign: "left", padding: 0 }}>💾 Enregistrer « {f.client.trim()} » comme client</button>
+            )}
+            {clientOk && <div style={{ fontSize: 12, color: C.green }}>✓ Client enregistré</div>}
+          </div>
         )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -637,7 +648,7 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
           {chauffeurSaved && f.chauffeur?.trim() && <div style={{ fontSize: 12, color: C.green }}>✓ Mémorisé</div>}
         </div>
 
-        <Input label="Nom du client" value={f.client} onChange={e => set("client", e.target.value)} placeholder="Ex: M. Dupont" />
+        {!f.isPrivate && <Input label="Nom du client" value={f.client} onChange={e => set("client", e.target.value)} placeholder="Ex: M. Dupont" />}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <Lbl>Catégorie véhicule</Lbl>
@@ -1346,6 +1357,12 @@ export default function App() {
     if (!window.confirm("Supprimer ce client ?")) return;
     if (!DEMO_MODE) await supabase.from("clients").delete().eq("id", id);
     setSavedClients(prev => prev.filter(c => c.id !== id));
+  };
+  const handleQuickSaveClient = async (fullName) => {
+    const parts = fullName.trim().split(" ");
+    const nom = parts[parts.length - 1];
+    const prenom = parts.slice(0, -1).join(" ");
+    await handleSaveClient({ id: uid(), nom, prenom, telephone: "", pays: "France", langue: "fr", preferences: "" });
   };
 
   // ── Handlers Chauffeurs ─────────────────────────────────────────────────────
@@ -2091,7 +2108,7 @@ export default function App() {
       {/* Modales */}
       {showRecurringModal && <RecurringFraisModal recurringFrais={recurringFrais} onSave={handleSaveRecurring} onClose={() => setShowRecurringModal(false)} />}
       {showMonthPicker && <MonthPickerModal year={year} month={month} onChange={(y, m) => { setYear(y); setMonth(m); }} onClose={() => setShowMonthPicker(false)} />}
-      {(showCourseModal || editCourse) && <CourseModal initial={editCourse} onSave={saveCourse} onClose={() => { setShowCourseModal(false); setEditCourse(null); }} savedCompanies={savedCompanies} onSaveCompany={handleSaveCompany} savedChauffeurs={savedChauffeurs} onSaveChauffeur={handleSaveChauffeur} defaultChauffeur={defaultChauffeur} sousTraitantTarifs={sousTraitantTarifs} savedClients={savedClients} />}
+      {(showCourseModal || editCourse) && <CourseModal initial={editCourse} onSave={saveCourse} onClose={() => { setShowCourseModal(false); setEditCourse(null); }} savedCompanies={savedCompanies} onSaveCompany={handleSaveCompany} savedChauffeurs={savedChauffeurs} onSaveChauffeur={handleSaveChauffeur} defaultChauffeur={defaultChauffeur} sousTraitantTarifs={sousTraitantTarifs} savedClients={savedClients} onSaveClient={handleQuickSaveClient} />}
       {(showFraisModal || editFrais) && <FraisModal initial={editFrais} onSave={saveFrais} onClose={() => { setShowFraisModal(false); setEditFrais(null); }} />}
       {editCompany && <CompanyInfoModal initial={editCompany} onSave={handleSaveCompany} onClose={() => setEditCompany(null)} />}
       {showChauffeurSettings && <ChauffeurSettingsModal savedChauffeurs={savedChauffeurs} defaultChauffeur={defaultChauffeur} onSetDefault={handleSetDefault} onAdd={handleSaveChauffeur} onDelete={handleDeleteChauffeur} onClose={() => setShowChauffeurSettings(false)} />}
