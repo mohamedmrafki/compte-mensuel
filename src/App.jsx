@@ -1977,7 +1977,14 @@ export default function App() {
             {tab === "clients" && (() => {
               const now = new Date();
               const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
-              // Calculer la dernière réservation de chaque client depuis les courses (is_private + client name)
+              // Grouper les courses privées du mois par nom de client
+              const byClient = {};
+              mc.filter(c => c.isPrivate && c.client?.trim()).forEach(c => {
+                const key = c.client.trim();
+                if (!byClient[key]) byClient[key] = { amount: 0, trips: [] };
+                byClient[key].amount += Number(c.total || 0);
+                byClient[key].trips.push(c);
+              });
               const getLastBooking = (client) => {
                 const fullName = [client.prenom, client.nom].filter(Boolean).join(" ").toLowerCase();
                 const matches = mc.filter(c => c.isPrivate && c.client && c.client.toLowerCase() === fullName);
@@ -1986,50 +1993,102 @@ export default function App() {
               };
               return (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: C.muted }}>Clients directs ({savedClients.length})</div>
-                    <Btn small onClick={() => setEditClient(defClient())}>+ Ajouter</Btn>
-                  </div>
-                  {savedClients.length === 0 && (
-                    <div style={{ textAlign: "center", padding: 32, color: C.muted }}>
-                      <div style={{ fontSize: 36 }}>👤</div>
-                      <div style={{ marginTop: 8 }}>Aucun client enregistré</div>
+
+                  {/* Prestations du mois */}
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.muted }}>Prestations – {MOIS[month]} {year}</div>
+                  {Object.keys(byClient).length === 0 && (
+                    <div style={{ textAlign: "center", padding: 24, color: C.muted }}>
+                      <div style={{ fontSize: 32 }}>👤</div>
+                      <div style={{ marginTop: 6 }}>Aucune course client direct ce mois</div>
                     </div>
                   )}
-                  {savedClients.map(client => {
-                    const lastBooking = getLastBooking(client);
-                    const isInactive = !lastBooking || lastBooking < sixMonthsAgo;
-                    const monthsAgo = lastBooking ? Math.floor((now - lastBooking) / (1000 * 60 * 60 * 24 * 30)) : null;
+                  {Object.entries(byClient).sort((a, b) => b[1].amount - a[1].amount).map(([name, d]) => {
+                    const fiche = savedClients.find(c => [c.prenom, c.nom].filter(Boolean).join(" ").toLowerCase() === name.toLowerCase());
                     return (
-                      <Card key={client.id}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                              <div style={{ fontWeight: 700, fontSize: 15 }}>{client.prenom} {client.nom}</div>
-                              <span style={{ fontSize: 11, color: client.langue === "en" ? C.blue : C.gold }}>{client.langue === "en" ? "🇬🇧 EN" : "🇫🇷 FR"}</span>
-                              {isInactive && (
-                                <span style={{ fontSize: 11, fontWeight: 700, color: "#F97316", background: "#F9731615", border: "1px solid #F9731640", borderRadius: 20, padding: "2px 8px" }}>
-                                  ⚠️ {monthsAgo === null ? "Jamais réservé" : `Inactif ${monthsAgo}+ mois`}
-                                </span>
-                              )}
-                              {!isInactive && lastBooking && (
-                                <span style={{ fontSize: 11, color: C.green }}>✓ Actif</span>
-                              )}
-                            </div>
-                            {client.telephone && <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>📞 {client.telephone}</div>}
-                            {client.pays && client.pays !== "France" && <div style={{ fontSize: 12, color: C.muted }}>🌍 {client.pays}</div>}
-                            {client.preferences && <div style={{ fontSize: 12, color: C.muted, marginTop: 2, fontStyle: "italic" }}>💬 {client.preferences}</div>}
-                            {lastBooking && <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>Dernière résa : {lastBooking.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" })}</div>}
+                      <Card key={name}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: 16 }}>{name}</div>
+                            {fiche?.telephone && <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>📞 {fiche.telephone}</div>}
+                            {fiche?.preferences && <div style={{ fontSize: 11, color: C.muted, fontStyle: "italic", marginTop: 1 }}>💬 {fiche.preferences}</div>}
+                            {!fiche && <div style={{ fontSize: 11, color: C.blue, marginTop: 2, cursor: "pointer" }} onClick={() => { const parts = name.split(" "); setEditClient({ id: uid(), nom: parts[parts.length-1], prenom: parts.slice(0,-1).join(" "), telephone: "", pays: "France", langue: "fr", preferences: "" }); }}>+ Créer une fiche</div>}
                           </div>
-                          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                            {isInactive && <Btn small onClick={() => setReminderClient(client)} style={{ background: "#F9731618", color: "#F97316", border: "1px solid #F9731644" }}>💬 Rappel</Btn>}
-                            <Btn small variant="ghost" onClick={() => setEditClient(client)}>✏️</Btn>
-                            <Btn small variant="danger" onClick={() => deleteClient(client.id)}>🗑</Btn>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div style={{ fontWeight: 800, fontSize: 20, color: C.gold, fontFamily: "monospace" }}>{fmt(d.amount)}</div>
+                            <button title="Copier les prestations" onClick={() => {
+                              const lines = d.trips.map(c => {
+                                const dateStr = new Date(c.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
+                                const trajet = [c.prise, c.depose].filter(Boolean).join(" → ") || c.prestation;
+                                return [dateStr, c.heure, trajet, c.vehicule, fmt(Number(c.total))].filter(Boolean).join("  |  ");
+                              });
+                              const header = `${name} – ${MOIS[month]} ${year}`;
+                              const sep = "─".repeat(Math.min(header.length + 4, 40));
+                              navigator.clipboard.writeText(`${header}\n${sep}\n${lines.join("\n")}\n${sep}\nTOTAL : ${fmt(d.amount)}`);
+                            }} style={{ background: `${C.gold}15`, border: `1px solid ${C.gold}44`, borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontSize: 14, color: C.gold }}>📋</button>
                           </div>
+                        </div>
+                        <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+                          {d.trips.map(c => {
+                            const sups = c.supplements || [];
+                            const supSum = sups.reduce((s, x) => s + Number(x.amount || 0), 0);
+                            return (
+                              <div key={c.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                                <div>
+                                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                                    <span style={{ color: C.muted }}>{new Date(c.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })}</span>
+                                    {c.heure && <span style={{ color: C.gold, fontWeight: 600 }}>{c.heure}</span>}
+                                    {c.vehicule && <span style={{ fontSize: 11, color: vColor(c.vehicule) }}>{vIcon(c.vehicule)}</span>}
+                                  </div>
+                                  {(c.prise || c.depose) && <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>{c.prise}{c.prise && c.depose ? " → " : ""}{c.depose}</div>}
+                                  {sups.length > 0 && <div style={{ fontSize: 11, color: C.teal, marginTop: 1 }}>{sups.map(s => s.type).join(" · ")} : +{fmt(supSum)}</div>}
+                                </div>
+                                <span style={{ fontWeight: 600, fontFamily: "monospace", flexShrink: 0 }}>{fmt(c.total)}</span>
+                              </div>
+                            );
+                          })}
                         </div>
                       </Card>
                     );
                   })}
+
+                  {/* Fiches clients */}
+                  <div style={{ marginTop: 6 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: C.muted }}>Clients enregistrés ({savedClients.length})</div>
+                      <Btn small onClick={() => setEditClient(defClient())}>+ Ajouter</Btn>
+                    </div>
+                    {savedClients.length === 0 && (
+                      <div style={{ color: C.muted, fontSize: 13, textAlign: "center", padding: "16px 0" }}>Aucun client enregistré</div>
+                    )}
+                    {savedClients.map(client => {
+                      const lastBooking = getLastBooking(client);
+                      const isInactive = !lastBooking || lastBooking < sixMonthsAgo;
+                      const monthsAgo = lastBooking ? Math.floor((now - lastBooking) / (1000 * 60 * 60 * 24 * 30)) : null;
+                      return (
+                        <Card key={client.id} style={{ marginBottom: 8 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                <div style={{ fontWeight: 700, fontSize: 14 }}>{client.prenom} {client.nom}</div>
+                                <span style={{ fontSize: 11, color: client.langue === "en" ? C.blue : C.gold }}>{client.langue === "en" ? "🇬🇧 EN" : "🇫🇷 FR"}</span>
+                                {isInactive && <span style={{ fontSize: 11, fontWeight: 700, color: "#F97316", background: "#F9731615", border: "1px solid #F9731640", borderRadius: 20, padding: "2px 8px" }}>⚠️ {monthsAgo === null ? "Jamais réservé" : `Inactif ${monthsAgo}+ mois`}</span>}
+                                {!isInactive && <span style={{ fontSize: 11, color: C.green }}>✓ Actif</span>}
+                              </div>
+                              {client.telephone && <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>📞 {client.telephone}</div>}
+                              {client.pays && client.pays !== "France" && <div style={{ fontSize: 12, color: C.muted }}>🌍 {client.pays}</div>}
+                              {client.preferences && <div style={{ fontSize: 12, color: C.muted, marginTop: 2, fontStyle: "italic" }}>💬 {client.preferences}</div>}
+                              {lastBooking && <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>Dernière résa : {lastBooking.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" })}</div>}
+                            </div>
+                            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                              {isInactive && <Btn small onClick={() => setReminderClient(client)} style={{ background: "#F9731618", color: "#F97316", border: "1px solid #F9731644" }}>💬</Btn>}
+                              <Btn small variant="ghost" onClick={() => setEditClient(client)}>✏️</Btn>
+                              <Btn small variant="danger" onClick={() => deleteClient(client.id)}>🗑</Btn>
+                            </div>
+                          </div>
+                        </Card>
+                      );
+                    })}
+                  </div>
                 </div>
               );
             })()}
