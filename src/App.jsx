@@ -556,7 +556,7 @@ function computeChauffeurCost(f) {
   return "";
 }
 
-function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, savedChauffeurs, onSaveChauffeur, defaultChauffeur, sousTraitantTarifs }) {
+function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, savedChauffeurs, onSaveChauffeur, defaultChauffeur, sousTraitantTarifs, savedClients }) {
   const [f, setF] = useState(() => initial ? { supplements: [], ...initial } : defCourse(defaultChauffeur));
   const [tarifType, setTarifType] = useState(() => initial?.prestation === "mad" ? "mad" : null);
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
@@ -618,7 +618,7 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
         {/* Société en premier */}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <input type="checkbox" id="priv" checked={f.isPrivate} onChange={e => { set("isPrivate", e.target.checked); if (e.target.checked) { set("company", ""); setTarifType(null); } }} />
-          <label htmlFor="priv" style={{ color: C.text, fontSize: 14, cursor: "pointer" }}>Course privée – encaissement direct</label>
+          <label htmlFor="priv" style={{ color: C.text, fontSize: 14, cursor: "pointer" }}>Client direct – encaissement direct</label>
         </div>
         {!f.isPrivate && (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -626,6 +626,9 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
             {f.company?.trim() && !companyOk && <button onClick={() => onSaveCompany(f.company.trim())} style={{ background: "none", border: "none", color: C.blue, cursor: "pointer", fontSize: 13, textAlign: "left", padding: 0 }}>💾 Mémoriser « {f.company.trim()} »</button>}
             {companyOk && <div style={{ fontSize: 12, color: C.green }}>✓ Société mémorisée</div>}
           </div>
+        )}
+        {f.isPrivate && savedClients && savedClients.length > 0 && (
+          <ACInput label="Client enregistré (optionnel)" value={f.client} onChange={v => set("client", v)} suggestions={savedClients.map(c => [c.prenom, c.nom].filter(Boolean).join(" "))} placeholder="Sélectionner ou saisir…" icon="👤" />
         )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -940,6 +943,54 @@ function ChauffeurSettingsModal({ savedChauffeurs, defaultChauffeur, onSetDefaul
   );
 }
 
+// ── Modal Client direct ────────────────────────────────────────────────────────
+const defClient = () => ({ id: uid(), nom: "", prenom: "", telephone: "", pays: "France", langue: "fr", preferences: "" });
+function ClientModal({ initial, onSave, onClose }) {
+  const [f, setF] = useState(initial ? { ...initial } : defClient());
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  return (
+    <Modal title={initial ? "Modifier le client" : "Nouveau client"} onClose={onClose}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", gap: 10 }}>
+          <Input label="Prénom" value={f.prenom || ""} onChange={e => set("prenom", e.target.value)} style={{ flex: 1 }} placeholder="Jean" />
+          <Input label="Nom *" value={f.nom} onChange={e => set("nom", e.target.value)} style={{ flex: 1 }} placeholder="Dupont" />
+        </div>
+        <Input label="Téléphone" value={f.telephone || ""} onChange={e => set("telephone", e.target.value)} placeholder="+33 6 XX XX XX XX" />
+        <Input label="Pays" value={f.pays || ""} onChange={e => set("pays", e.target.value)} placeholder="France" />
+        <div>
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 6, fontWeight: 600 }}>Langue parlée</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            {[["fr","🇫🇷 Français"],["en","🇬🇧 English"]].map(([k,lbl]) => (
+              <button key={k} onClick={() => set("langue", k)} style={{ flex: 1, padding: "10px 6px", borderRadius: 8, border: `2px solid ${f.langue === k ? C.gold : C.border}`, background: f.langue === k ? `${C.gold}15` : C.surface, color: f.langue === k ? C.gold : C.muted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{lbl}</button>
+            ))}
+          </div>
+        </div>
+        <Input label="Préférences & notes" value={f.preferences || ""} onChange={e => set("preferences", e.target.value)} placeholder="Ex: eau minérale, température habituelle, musique, allergies…" />
+        <Btn onClick={() => f.nom.trim() && onSave(f)}>Enregistrer</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+// ── Modal Rappel client inactif ────────────────────────────────────────────────
+function ReminderModal({ client, onClose }) {
+  const [copied, setCopied] = useState(false);
+  const prenom = client.prenom || client.nom;
+  const msg = client.langue === "en"
+    ? `Dear ${prenom},\n\nI hope this message finds you well. It has been a while since we last had the pleasure of accompanying you, and we wanted to reach out.\n\nWe remain at your full disposal for all your travel needs in Paris and the Île-de-France region: airport transfers, chauffeur at disposal service, or any other premium private car service.\n\nPlease do not hesitate to get in touch for any upcoming reservation — we will be delighted to assist you.\n\nWarm regards,\nFaiz Transport Paris`
+    : `Bonjour ${prenom},\n\nJ'espère que vous allez bien. Cela fait quelque temps que nous n'avons pas eu le plaisir de vous accompagner, et nous tenions à prendre de vos nouvelles.\n\nNous restons à votre entière disposition pour tous vos déplacements à Paris et en Île-de-France : transferts aéroports, mises à disposition ou tout autre besoin en transport privé haut de gamme.\n\nN'hésitez pas à nous contacter pour toute réservation — nous serons ravis de vous retrouver.\n\nBien cordialement,\nFaiz Transport Paris`;
+  const copy = () => { navigator.clipboard.writeText(msg); setCopied(true); setTimeout(() => setCopied(false), 2500); };
+  return (
+    <Modal title="💬 Message de rappel" onClose={onClose}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ fontSize: 12, color: C.muted }}>Message personnalisé pour <strong style={{ color: C.text }}>{client.prenom} {client.nom}</strong> ({client.langue === "en" ? "🇬🇧 English" : "🇫🇷 Français"})</div>
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 14, fontSize: 13, color: C.text, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{msg}</div>
+        <Btn onClick={copy} style={{ background: copied ? `${C.green}18` : undefined, color: copied ? C.green : undefined, borderColor: copied ? C.green : undefined }}>{copied ? "✓ Copié !" : "📋 Copier le message"}</Btn>
+      </div>
+    </Modal>
+  );
+}
+
 // ── Écran de verrouillage PIN ─────────────────────────────────────────────────
 const PIN_CODE = "93270";
 function PinLock({ onUnlock }) {
@@ -1038,6 +1089,9 @@ export default function App() {
   const [showFraisModal, setShowFraisModal] = useState(false);
   const [editFrais, setEditFrais] = useState(null);
   const [editCompany, setEditCompany] = useState(null);
+  const [savedClients, setSavedClients] = useState([]);
+  const [editClient, setEditClient] = useState(null);
+  const [reminderClient, setReminderClient] = useState(null);
   const [showChauffeurSettings, setShowChauffeurSettings] = useState(false);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   const [showRecurringModal, setShowRecurringModal] = useState(false);
@@ -1084,10 +1138,11 @@ export default function App() {
         const companiesQuery = profile === "commission"
           ? supabase.from("companies").select("*").order("name")
           : supabase.from("companies").select("*").eq("profile", profile).order("name");
-        const [companiesRes, chauffeursRes, recurringRes] = await Promise.all([
+        const [companiesRes, chauffeursRes, recurringRes, clientsRes] = await Promise.all([
           companiesQuery,
           supabase.from("chauffeurs").select("*").eq("profile", profile).order("name"),
           supabase.from("recurring_frais").select("*").eq("profile", profile).order("created_at"),
+          supabase.from("clients").select("*").eq("profile", profile).order("nom"),
         ]);
         if (companiesRes.error) throw companiesRes.error;
         if (chauffeursRes.error) throw chauffeursRes.error;
@@ -1106,6 +1161,7 @@ export default function App() {
         const def = chData.find(c => c.is_default);
         if (def) setDefaultChauffeur(def.name);
         setRecurringFrais((recurringRes.data || []).map(recurringFromDb));
+        setSavedClients(clientsRes.data || []);
         setDbError(null);
       } catch (e) {
         setDbError("Erreur de connexion à la base de données. Vérifie ta connexion internet.");
@@ -1275,6 +1331,23 @@ export default function App() {
     setSavedCompanies(prev => prev.filter(c => c.id !== id));
   };
 
+  // ── Handlers Clients directs ─────────────────────────────────────────────────
+  const handleSaveClient = async (clientObj) => {
+    const toSave = { ...clientObj, profile };
+    if (!DEMO_MODE) await supabase.from("clients").upsert(toSave);
+    setSavedClients(prev => {
+      const idx = prev.findIndex(c => c.id === clientObj.id);
+      if (idx >= 0) { const l = [...prev]; l[idx] = toSave; return l; }
+      return [...prev, toSave];
+    });
+    setEditClient(null);
+  };
+  const deleteClient = async (id) => {
+    if (!window.confirm("Supprimer ce client ?")) return;
+    if (!DEMO_MODE) await supabase.from("clients").delete().eq("id", id);
+    setSavedClients(prev => prev.filter(c => c.id !== id));
+  };
+
   // ── Handlers Chauffeurs ─────────────────────────────────────────────────────
   const handleSaveChauffeur = async (name) => {
     if (!chauffeurObjects.some(c => c.name.toLowerCase() === name.toLowerCase())) {
@@ -1440,7 +1513,7 @@ export default function App() {
           </div>
         </div>
         <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 2, WebkitOverflowScrolling: "touch" }}>
-          {[["dashboard","📊 Résumé"],["courses","🚗 Courses"],["chauffeurs","🧑‍✈️ Chauffeurs"],["frais","💸 Frais"],["societes","🏢 Sociétés"],["annuel","📅 Année"]]
+          {[["dashboard","📊 Résumé"],["courses","🚗 Courses"],["chauffeurs","🧑‍✈️ Chauffeurs"],["frais","💸 Frais"],["societes","🏢 Sociétés"],["clients","👤 Clients"],["annuel","📅 Année"]]
             .filter(([id]) => profile !== "commission" || (id !== "frais" && id !== "chauffeurs"))
             .map(([id, lbl]) => (
               <Pill key={id} label={lbl} active={tab === id} onClick={() => { setTab(id); if (id === "annuel" && !annualData) loadAnnualData(); }} />
@@ -1813,7 +1886,21 @@ export default function App() {
                           {info?.siren && <div style={{ fontSize: 11, color: C.muted }}>SIREN : {info.siren}</div>}
                           {info?.tva && <div style={{ fontSize: 11, color: C.muted }}>TVA : {info.tva}</div>}
                         </div>
-                        <div style={{ fontWeight: 800, fontSize: 20, color: si.key === "payee" ? C.green : C.gold, fontFamily: "monospace" }}>{fmt(d.amount)}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <div style={{ fontWeight: 800, fontSize: 20, color: si.key === "payee" ? C.green : C.gold, fontFamily: "monospace" }}>{fmt(d.amount)}</div>
+                          <button title="Copier la liste des prestations" onClick={() => {
+                            const lines = d.trips.map(c => {
+                              const dateStr = new Date(c.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
+                              const trajet = [c.prise, c.depose].filter(Boolean).join(" → ") || c.prestation;
+                              const parts = [dateStr, c.heure, c.client, trajet, c.vehicule, fmt(Number(c.total))].filter(Boolean);
+                              return parts.join("  |  ");
+                            });
+                            const header = `${name} – ${MOIS[month]} ${year}`;
+                            const sep = "─".repeat(Math.min(header.length + 4, 40));
+                            const text = `${header}\n${sep}\n${lines.join("\n")}\n${sep}\nTOTAL : ${fmt(d.amount)}`;
+                            navigator.clipboard.writeText(text);
+                          }} style={{ background: `${C.gold}15`, border: `1px solid ${C.gold}44`, borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontSize: 14, color: C.gold }}>📋</button>
+                        </div>
                       </div>
                       <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
                         {INVOICE_STATUSES.map(s => (
@@ -1868,6 +1955,67 @@ export default function App() {
                 </div>
               </div>
             )}
+
+            {/* CLIENTS DIRECTS */}
+            {tab === "clients" && (() => {
+              const now = new Date();
+              const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+              // Calculer la dernière réservation de chaque client depuis les courses (is_private + client name)
+              const getLastBooking = (client) => {
+                const fullName = [client.prenom, client.nom].filter(Boolean).join(" ").toLowerCase();
+                const matches = mc.filter(c => c.isPrivate && c.client && c.client.toLowerCase() === fullName);
+                if (matches.length === 0) return null;
+                return matches.map(c => new Date(c.date)).sort((a, b) => b - a)[0];
+              };
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: C.muted }}>Clients directs ({savedClients.length})</div>
+                    <Btn small onClick={() => setEditClient(defClient())}>+ Ajouter</Btn>
+                  </div>
+                  {savedClients.length === 0 && (
+                    <div style={{ textAlign: "center", padding: 32, color: C.muted }}>
+                      <div style={{ fontSize: 36 }}>👤</div>
+                      <div style={{ marginTop: 8 }}>Aucun client enregistré</div>
+                    </div>
+                  )}
+                  {savedClients.map(client => {
+                    const lastBooking = getLastBooking(client);
+                    const isInactive = !lastBooking || lastBooking < sixMonthsAgo;
+                    const monthsAgo = lastBooking ? Math.floor((now - lastBooking) / (1000 * 60 * 60 * 24 * 30)) : null;
+                    return (
+                      <Card key={client.id}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                              <div style={{ fontWeight: 700, fontSize: 15 }}>{client.prenom} {client.nom}</div>
+                              <span style={{ fontSize: 11, color: client.langue === "en" ? C.blue : C.gold }}>{client.langue === "en" ? "🇬🇧 EN" : "🇫🇷 FR"}</span>
+                              {isInactive && (
+                                <span style={{ fontSize: 11, fontWeight: 700, color: "#F97316", background: "#F9731615", border: "1px solid #F9731640", borderRadius: 20, padding: "2px 8px" }}>
+                                  ⚠️ {monthsAgo === null ? "Jamais réservé" : `Inactif ${monthsAgo}+ mois`}
+                                </span>
+                              )}
+                              {!isInactive && lastBooking && (
+                                <span style={{ fontSize: 11, color: C.green }}>✓ Actif</span>
+                              )}
+                            </div>
+                            {client.telephone && <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>📞 {client.telephone}</div>}
+                            {client.pays && client.pays !== "France" && <div style={{ fontSize: 12, color: C.muted }}>🌍 {client.pays}</div>}
+                            {client.preferences && <div style={{ fontSize: 12, color: C.muted, marginTop: 2, fontStyle: "italic" }}>💬 {client.preferences}</div>}
+                            {lastBooking && <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>Dernière résa : {lastBooking.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" })}</div>}
+                          </div>
+                          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                            {isInactive && <Btn small onClick={() => setReminderClient(client)} style={{ background: "#F9731618", color: "#F97316", border: "1px solid #F9731644" }}>💬 Rappel</Btn>}
+                            <Btn small variant="ghost" onClick={() => setEditClient(client)}>✏️</Btn>
+                            <Btn small variant="danger" onClick={() => deleteClient(client.id)}>🗑</Btn>
+                          </div>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              );
+            })()}
 
             {/* ANNUEL */}
             {tab === "annuel" && (
@@ -1943,11 +2091,13 @@ export default function App() {
       {/* Modales */}
       {showRecurringModal && <RecurringFraisModal recurringFrais={recurringFrais} onSave={handleSaveRecurring} onClose={() => setShowRecurringModal(false)} />}
       {showMonthPicker && <MonthPickerModal year={year} month={month} onChange={(y, m) => { setYear(y); setMonth(m); }} onClose={() => setShowMonthPicker(false)} />}
-      {(showCourseModal || editCourse) && <CourseModal initial={editCourse} onSave={saveCourse} onClose={() => { setShowCourseModal(false); setEditCourse(null); }} savedCompanies={savedCompanies} onSaveCompany={handleSaveCompany} savedChauffeurs={savedChauffeurs} onSaveChauffeur={handleSaveChauffeur} defaultChauffeur={defaultChauffeur} sousTraitantTarifs={sousTraitantTarifs} />}
+      {(showCourseModal || editCourse) && <CourseModal initial={editCourse} onSave={saveCourse} onClose={() => { setShowCourseModal(false); setEditCourse(null); }} savedCompanies={savedCompanies} onSaveCompany={handleSaveCompany} savedChauffeurs={savedChauffeurs} onSaveChauffeur={handleSaveChauffeur} defaultChauffeur={defaultChauffeur} sousTraitantTarifs={sousTraitantTarifs} savedClients={savedClients} />}
       {(showFraisModal || editFrais) && <FraisModal initial={editFrais} onSave={saveFrais} onClose={() => { setShowFraisModal(false); setEditFrais(null); }} />}
       {editCompany && <CompanyInfoModal initial={editCompany} onSave={handleSaveCompany} onClose={() => setEditCompany(null)} />}
       {showChauffeurSettings && <ChauffeurSettingsModal savedChauffeurs={savedChauffeurs} defaultChauffeur={defaultChauffeur} onSetDefault={handleSetDefault} onAdd={handleSaveChauffeur} onDelete={handleDeleteChauffeur} onClose={() => setShowChauffeurSettings(false)} />}
       {showTarifsModal && <TarifsModal tarifs={sousTraitantTarifs} onSave={saveTarifs} onClose={() => setShowTarifsModal(false)} />}
+      {editClient && <ClientModal initial={editClient.nom ? editClient : null} onSave={handleSaveClient} onClose={() => setEditClient(null)} />}
+      {reminderClient && <ReminderModal client={reminderClient} onClose={() => setReminderClient(null)} />}
 
       {/* Bouton flottant + */}
       {tab === "courses" && !showCourseModal && !editCourse && <button onClick={() => setShowCourseModal(true)} style={{ position: "fixed", bottom: 24, right: 24, width: 54, height: 54, borderRadius: "50%", background: C.gold, border: "none", cursor: "pointer", fontSize: 24, color: C.bg, fontWeight: 700, boxShadow: `0 4px 20px ${C.gold}55`, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>}
