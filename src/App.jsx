@@ -41,6 +41,8 @@ const MOIS = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août"
 const LIEUX = ["CDG","ORY","LBG","Gare de l'Est","Gare de Lyon","Gare du Nord","Gare Montparnasse"];
 const FRAIS_CATS = ["Essence / Péage","Bureau","Digidom","Assurance","SFR","Site web","Entretien / Réparation","Nourriture","Autre"];
 const VEHICULES = ["Classe E","Classe V","Classe S"];
+const vColor = v => v === "Classe E" ? C.blue : v === "Classe V" ? C.purple : C.teal;
+const vIcon  = v => v === "Classe E" ? "🚙" : v === "Classe V" ? "🚐" : "🚗";
 const SUPPLEMENT_TYPES = ["Attente","Stop supplémentaire","Parking","Péage","Nuit / Dimanche","Bagages","Autre"];
 const AEROPORTS = ["CDG","ORY","LBG"];
 const SOUS_TRAITANT_TARIFS_DEFAULT = {
@@ -478,7 +480,11 @@ tbody tr:nth-child(even){background:#f8f7f2}td{padding:8px;border-bottom:1px sol
 .amount{text-align:right;font-family:monospace;font-weight:600;white-space:nowrap}.tr{font-size:13px;color:#A0782A}
 .sectitle{font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#888;font-weight:700;margin:24px 0 12px;padding-bottom:5px;border-bottom:1px solid #ddd}
 .info{font-size:10px;color:#666;margin-top:2px}
-@media print{body{padding:10px}@page{margin:1.2cm;size:A4}.pb{page-break-before:always}}</style></head><body>
+@media print{body{padding:10px}@page{margin:1.2cm;size:A4}.pb{page-break-before:always}.no-print{display:none!important}}</style></head><body>
+<div class="no-print" style="position:sticky;top:0;z-index:99;background:#fff;border-bottom:2px solid #C8A45A;padding:10px 20px;display:flex;gap:10px;align-items:center;margin:-20px -20px 20px -20px">
+  <button onclick="window.print()" style="background:#1a1a2e;color:#fff;border:none;border-radius:6px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer">🖨️ Imprimer / Enregistrer PDF</button>
+  <button onclick="window.close()" style="background:#f0ead8;color:#1a1a2e;border:1px solid #C8A45A;border-radius:6px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer">← Fermer</button>
+</div>
 <div class="hdr"><div><h1>Récapitulatif mensuel</h1><p style="font-size:15px;font-weight:600;color:#C8A45A;margin-top:4px;text-transform:capitalize">${label}</p><p style="font-size:11px;color:#888;margin-top:2px">Généré le ${new Date().toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"})}</p></div></div>
 <div class="stats">
   <div class="sbox"><div class="slbl">CA Brut</div><div class="sval gold">${fmtNum(totalCA)} €</div></div>
@@ -598,6 +604,23 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
       if (rate) setF(p => ({ ...p, prestation: "mad", tauxHoraire: String(rate) }));
     }
   }, [f.company, f.vehicule, tarifType, f.prise, f.depose, f.prestation]);
+
+  // Auto-fill prix depuis la grille tarifaire du client direct
+  useEffect(() => {
+    if (!f.isPrivate || !f.client?.trim() || !f.vehicule) return;
+    const clientObj = (savedClients || []).find(c => [c.prenom, c.nom].filter(Boolean).join(" ").toLowerCase() === f.client.trim().toLowerCase());
+    if (!clientObj?.prices) return;
+    const vp = clientObj.prices[f.vehicule];
+    if (!vp) return;
+    const detected = tarifType || (f.prestation === "mad" ? "mad" : isAeroportTrajet(f.prise, f.depose) ? "aeroport" : "paris");
+    if (detected === "aeroport" || detected === "paris") {
+      const price = vp[detected];
+      if (price) setF(p => ({ ...p, prestation: "transfert", prixTTC: String(price) }));
+    } else if (detected === "mad") {
+      const rate = vp.mad;
+      if (rate) setF(p => ({ ...p, prestation: "mad", tauxHoraire: String(rate) }));
+    }
+  }, [f.client, f.vehicule, tarifType, f.prise, f.depose, f.prestation, f.isPrivate]);
 
   const isOtherDriver = f.chauffeur && f.chauffeur !== defaultChauffeur;
   const companyObj = savedCompanies.find(c => c.name.toLowerCase() === (f.company || "").trim().toLowerCase());
@@ -955,10 +978,18 @@ function ChauffeurSettingsModal({ savedChauffeurs, defaultChauffeur, onSetDefaul
 }
 
 // ── Modal Client direct ────────────────────────────────────────────────────────
-const defClient = () => ({ id: uid(), nom: "", prenom: "", telephone: "", pays: "France", langue: "fr", preferences: "" });
+const defClient = () => ({ id: uid(), nom: "", prenom: "", telephone: "", pays: "France", langue: "fr", preferences: "", prices: defPrices() });
 function ClientModal({ initial, onSave, onClose }) {
-  const [f, setF] = useState(initial ? { ...initial } : defClient());
+  const [f, setF] = useState(() => {
+    const base = initial ? { ...initial } : defClient();
+    const prices = { ...defPrices(), ...(base.prices || {}) };
+    VEHICULES.forEach(v => { prices[v] = { aeroport: "", paris: "", mad: "", ...(prices[v] || {}) }; });
+    return { ...base, prices };
+  });
+  const [activeTab, setActiveTab] = useState("infos");
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const setPrice = (v, t, val) => setF(p => ({ ...p, prices: { ...p.prices, [v]: { ...p.prices[v], [t]: val } } }));
+  const tabStyle = (t) => ({ flex: 1, padding: "8px 0", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 600, fontSize: 13, background: activeTab === t ? C.gold : C.surface, color: activeTab === t ? C.bg : C.muted, transition: "all 0.15s" });
   return (
     <Modal title={initial ? "Modifier le client" : "Nouveau client"} onClose={onClose}>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -966,17 +997,35 @@ function ClientModal({ initial, onSave, onClose }) {
           <Input label="Prénom" value={f.prenom || ""} onChange={e => set("prenom", e.target.value)} style={{ flex: 1 }} placeholder="Jean" />
           <Input label="Nom *" value={f.nom} onChange={e => set("nom", e.target.value)} style={{ flex: 1 }} placeholder="Dupont" />
         </div>
-        <Input label="Téléphone" value={f.telephone || ""} onChange={e => set("telephone", e.target.value)} placeholder="+33 6 XX XX XX XX" />
-        <Input label="Pays" value={f.pays || ""} onChange={e => set("pays", e.target.value)} placeholder="France" />
-        <div>
-          <div style={{ fontSize: 12, color: C.muted, marginBottom: 6, fontWeight: 600 }}>Langue parlée</div>
-          <div style={{ display: "flex", gap: 8 }}>
-            {[["fr","🇫🇷 Français"],["en","🇬🇧 English"]].map(([k,lbl]) => (
-              <button key={k} onClick={() => set("langue", k)} style={{ flex: 1, padding: "10px 6px", borderRadius: 8, border: `2px solid ${f.langue === k ? C.gold : C.border}`, background: f.langue === k ? `${C.gold}15` : C.surface, color: f.langue === k ? C.gold : C.muted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{lbl}</button>
+        <div style={{ display: "flex", gap: 6, background: C.surface, borderRadius: 10, padding: 4 }}>
+          <button style={tabStyle("infos")} onClick={() => setActiveTab("infos")}>👤 Infos</button>
+          <button style={tabStyle("tarifs")} onClick={() => setActiveTab("tarifs")}>💶 Tarifs</button>
+        </div>
+        {activeTab === "infos" && (<>
+          <Input label="Téléphone" value={f.telephone || ""} onChange={e => set("telephone", e.target.value)} placeholder="+33 6 XX XX XX XX" />
+          <Input label="Pays" value={f.pays || ""} onChange={e => set("pays", e.target.value)} placeholder="France" />
+          <div>
+            <div style={{ fontSize: 12, color: C.muted, marginBottom: 6, fontWeight: 600 }}>Langue parlée</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {[["fr","🇫🇷 Français"],["en","🇬🇧 English"]].map(([k,lbl]) => (
+                <button key={k} onClick={() => set("langue", k)} style={{ flex: 1, padding: "10px 6px", borderRadius: 8, border: `2px solid ${f.langue === k ? C.gold : C.border}`, background: f.langue === k ? `${C.gold}15` : C.surface, color: f.langue === k ? C.gold : C.muted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{lbl}</button>
+              ))}
+            </div>
+          </div>
+          <Input label="Préférences & notes" value={f.preferences || ""} onChange={e => set("preferences", e.target.value)} placeholder="Ex: eau minérale, température habituelle, musique, allergies…" />
+        </>)}
+        {activeTab === "tarifs" && VEHICULES.map(v => (
+          <div key={v} style={{ background: C.surface, border: `1px solid ${vColor(v)}33`, borderRadius: 12, padding: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: vColor(v), textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>{vIcon(v)} {v}</div>
+            {TARIF_TYPES.map(t => (
+              <div key={t.key} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                <div style={{ flex: 1, fontSize: 13, color: C.muted }}>{t.label}</div>
+                <input type="number" value={f.prices[v]?.[t.key] || ""} onChange={e => setPrice(v, t.key, e.target.value)} placeholder="—" style={{ ...iBase, width: 90, textAlign: "right" }} />
+                <span style={{ fontSize: 12, color: C.muted, minWidth: 20 }}>{t.key === "mad" ? "€/h" : "€"}</span>
+              </div>
             ))}
           </div>
-        </div>
-        <Input label="Préférences & notes" value={f.preferences || ""} onChange={e => set("preferences", e.target.value)} placeholder="Ex: eau minérale, température habituelle, musique, allergies…" />
+        ))}
         <Btn onClick={() => f.nom.trim() && onSave(f)}>Enregistrer</Btn>
       </div>
     </Modal>
@@ -1120,6 +1169,10 @@ export default function App() {
   const [annualLoading, setAnnualLoading] = useState(false);
   const [searchSocietes, setSearchSocietes] = useState("");
   const [chauffeurPaid, setChauffeurPaid] = useState(() => { try { return JSON.parse(localStorage.getItem("chauffeur_paid") || "{}"); } catch { return {}; } });
+  const [clientDirectPaid, setClientDirectPaid] = useState(() => { try { return JSON.parse(localStorage.getItem("client_direct_paid") || "{}"); } catch { return {}; } });
+  const [societeStatusFilter, setSocieteStatusFilter] = useState(null);
+  const [annualClients, setAnnualClients] = useState(null);
+  const [annualClientsLoading, setAnnualClientsLoading] = useState(false);
 
   const mk = monthKey(year, month);
   const savedChauffeurs = chauffeurObjects.map(c => c.name);
@@ -1358,6 +1411,27 @@ export default function App() {
     if (!DEMO_MODE) await supabase.from("clients").delete().eq("id", id);
     setSavedClients(prev => prev.filter(c => c.id !== id));
   };
+  const toggleClientDirectPaid = (clientName) => {
+    const key = `${profile}_${mk}_${clientName}`;
+    setClientDirectPaid(prev => { const next = { ...prev, [key]: !prev[key] }; localStorage.setItem("client_direct_paid", JSON.stringify(next)); return next; });
+  };
+  const isClientDirectPaid = (clientName) => !!clientDirectPaid[`${profile}_${mk}_${clientName}`];
+  const loadAnnualClients = async () => {
+    if (!profile || DEMO_MODE) return;
+    setAnnualClientsLoading(true);
+    try {
+      const res = await supabase.from("courses").select("total,client,month_key").like("month_key", `${year}-%`).eq("profile", profile).eq("is_private", true);
+      const byClient = {};
+      (res.data || []).forEach(r => {
+        if (!r.client?.trim()) return;
+        const k = r.client.trim();
+        if (!byClient[k]) byClient[k] = { total: 0, trips: 0 };
+        byClient[k].total += Number(r.total || 0);
+        byClient[k].trips++;
+      });
+      setAnnualClients(byClient);
+    } finally { setAnnualClientsLoading(false); }
+  };
   const handleQuickSaveClient = async (fullName) => {
     const parts = fullName.trim().split(" ");
     const nom = parts[parts.length - 1];
@@ -1486,7 +1560,6 @@ export default function App() {
     const w = window.open("", "_blank");
     w.document.write(generateRecapHTML({ year, month, courses: coursesDict, frais: fraisDict, savedCompanies, defaultChauffeur, profile }));
     w.document.close();
-    setTimeout(() => w.print(), 500);
   };
 
   const vColor = v => v === "Classe E" ? C.blue : v === "Classe V" ? C.purple : C.teal;
@@ -1876,7 +1949,7 @@ export default function App() {
                   return (
                     <div style={{ display: "flex", gap: 8 }}>
                       {INVOICE_STATUSES.map(s => (
-                        <div key={s.key} style={{ flex: 1, background: s.bg, border: `1px solid ${s.border}`, borderRadius: 10, padding: "8px 10px", textAlign: "center" }}>
+                        <div key={s.key} onClick={() => setSocieteStatusFilter(f => f === s.key ? null : s.key)} style={{ flex: 1, background: societeStatusFilter === s.key ? s.bg : `${s.bg}88`, border: `2px solid ${societeStatusFilter === s.key ? s.color : s.border}`, borderRadius: 10, padding: "8px 10px", textAlign: "center", cursor: "pointer", transition: "all 0.15s" }}>
                           <div style={{ fontSize: 16 }}>{s.emoji}</div>
                           <div style={{ fontSize: 18, fontWeight: 800, color: s.color }}>{counts[s.key]}</div>
                           <div style={{ fontSize: 10, color: s.color, fontWeight: 600 }}>{s.label}</div>
@@ -1885,8 +1958,9 @@ export default function App() {
                     </div>
                   );
                 })()}
+                {societeStatusFilter && <div style={{ fontSize: 12, color: C.muted, textAlign: "center" }}>Filtre actif : {invoiceStatusInfo(societeStatusFilter).emoji} {invoiceStatusInfo(societeStatusFilter).label} — <button onClick={() => setSocieteStatusFilter(null)} style={{ background: "none", border: "none", color: C.gold, cursor: "pointer", fontSize: 12 }}>Tout afficher</button></div>}
                 {Object.keys(byCompany).length === 0 && <div style={{ textAlign: "center", padding: 24, color: C.muted }}><div style={{ fontSize: 32 }}>🏢</div><div style={{ marginTop: 6 }}>Aucune course société ce mois</div></div>}
-                {Object.entries(byCompany).sort((a, b) => b[1].amount - a[1].amount).map(([name, d]) => {
+                {Object.entries(byCompany).filter(([name]) => !societeStatusFilter || getInvoiceStatus(name) === societeStatusFilter).sort((a, b) => b[1].amount - a[1].amount).map(([name, d]) => {
                   const info = savedCompanies.find(c => c.name.toLowerCase() === name.toLowerCase());
                   const status = getInvoiceStatus(name);
                   const si = invoiceStatusInfo(status);
@@ -1994,6 +2068,39 @@ export default function App() {
               return (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 
+                  {/* Header + bilan annuel */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: C.muted }}>Prestations – {MOIS[month]} {year}</div>
+                    <Btn small onClick={() => { setAnnualClients(null); loadAnnualClients(); }} style={{ background: `${C.gold}18`, color: C.gold, border: `1px solid ${C.gold}44` }}>📅 Bilan {year}</Btn>
+                  </div>
+
+                  {/* Bilan annuel clients */}
+                  {(annualClients || annualClientsLoading) && (
+                    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: C.gold }}>📅 Bilan annuel {year}</div>
+                        <button onClick={() => setAnnualClients(null)} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 18 }}>×</button>
+                      </div>
+                      {annualClientsLoading && <div style={{ color: C.muted, fontSize: 13 }}>Chargement…</div>}
+                      {annualClients && Object.keys(annualClients).length === 0 && <div style={{ color: C.muted, fontSize: 13 }}>Aucune course client direct en {year}</div>}
+                      {annualClients && Object.entries(annualClients).sort((a, b) => b[1].total - a[1].total).map(([name, d]) => (
+                        <div key={name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${C.border}` }}>
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: 14 }}>{name}</div>
+                            <div style={{ fontSize: 11, color: C.muted }}>{d.trips} course{d.trips > 1 ? "s" : ""}</div>
+                          </div>
+                          <div style={{ fontWeight: 800, color: C.gold, fontFamily: "monospace" }}>{fmt(d.total)}</div>
+                        </div>
+                      ))}
+                      {annualClients && Object.keys(annualClients).length > 0 && (
+                        <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 10, fontWeight: 800, color: C.gold }}>
+                          <div>Total {year}</div>
+                          <div style={{ fontFamily: "monospace" }}>{fmt(Object.values(annualClients).reduce((s, d) => s + d.total, 0))}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Prestations du mois */}
                   <div style={{ fontSize: 13, fontWeight: 700, color: C.muted }}>Prestations – {MOIS[month]} {year}</div>
                   {Object.keys(byClient).length === 0 && (
@@ -2026,6 +2133,14 @@ export default function App() {
                               navigator.clipboard.writeText(`${header}\n${sep}\n${lines.join("\n")}\n${sep}\nTOTAL : ${fmt(d.amount)}`);
                             }} style={{ background: `${C.gold}15`, border: `1px solid ${C.gold}44`, borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontSize: 14, color: C.gold }}>📋</button>
                           </div>
+                        </div>
+                        {/* Toggle Payé / À payer */}
+                        <div style={{ display: "flex", gap: 6, margin: "10px 0 4px" }}>
+                          {[["payé","✅ Payé",C.green],["a_payer","⏳ À payer","#F97316"]].map(([k,lbl,col]) => {
+                            const paid = isClientDirectPaid(name);
+                            const isActive = (k === "payé" && paid) || (k === "a_payer" && !paid);
+                            return <button key={k} onClick={() => toggleClientDirectPaid(name)} style={{ flex: 1, padding: "7px 4px", borderRadius: 8, border: `2px solid ${isActive ? col : C.border}`, background: isActive ? `${col}18` : C.surface, color: isActive ? col : C.muted, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{lbl}</button>;
+                          })}
                         </div>
                         <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
                           {d.trips.map(c => {
