@@ -578,14 +578,15 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
     if (!isOther || !f.vehicule) return;
     const tarifs = (sousTraitantTarifs || loadTarifs())[f.vehicule];
     if (!tarifs) return;
-    if (f.prestation === "transfert") {
-      const isAero = isAeroportTrajet(f.prise, f.depose);
-      const rate = isAero ? tarifs.aeroport : tarifs.paris;
-      setF(p => ({ ...p, chauffeurFlatRate: String(rate) }));
-    } else if (f.prestation === "mad") {
-      setF(p => ({ ...p, chauffeurHourlyRate: String(tarifs.mad) }));
+    if (tarifType === "mad" || f.prestation === "mad") {
+      if (tarifs.mad) setF(p => ({ ...p, chauffeurHourlyRate: String(tarifs.mad) }));
+    } else {
+      // tarifType explicite ou détection auto via adresses
+      const detected = tarifType === "aeroport" ? "aeroport" : tarifType === "paris" ? "paris" : (isAeroportTrajet(f.prise, f.depose) ? "aeroport" : "paris");
+      const rate = tarifs[detected];
+      if (rate) setF(p => ({ ...p, chauffeurFlatRate: String(rate) }));
     }
-  }, [f.chauffeur, f.vehicule, f.prestation, f.prise, f.depose]);
+  }, [f.chauffeur, f.vehicule, f.prestation, f.prise, f.depose, tarifType]);
 
   // Auto-fill prix depuis le tarif de la société
   useEffect(() => {
@@ -684,18 +685,19 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
           </div>
         </div>
 
-        {/* Tarif auto depuis société */}
-        {companyOk && companyObj.prices && (
+        {/* Type de tarif — société OU sous-traitant */}
+        {(companyOk && companyObj.prices || isOtherDriver) && (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <Lbl>Type de tarif</Lbl>
             <div style={{ display: "flex", gap: 6 }}>
               {TARIF_TYPES.map(t => (
                 <button key={t.key} onClick={() => setTarifType(t.key)} style={{ flex: 1, padding: "9px 4px", borderRadius: 10, border: `2px solid ${tarifType === t.key ? C.gold : C.border}`, background: tarifType === t.key ? `${C.gold}18` : C.surface, color: tarifType === t.key ? C.gold : C.muted, fontWeight: 600, fontSize: 11, cursor: "pointer", textAlign: "center" }}>
-                  {t.key === "aeroport" ? "✈️ Aéroport" : t.key === "paris" ? "🗼 Paris" : "⏱ MAD"}
+                  {t.key === "aeroport" ? "✈️ Aéroport" : t.key === "paris" ? "🗼 Paris/Gare" : "⏱ MAD"}
                 </button>
               ))}
             </div>
-            {tarifType && <div style={{ fontSize: 11, color: C.green }}>✓ Prix appliqué depuis les tarifs de la société</div>}
+            {tarifType && companyOk && !isOtherDriver && <div style={{ fontSize: 11, color: C.green }}>✓ Prix société appliqué</div>}
+            {tarifType && isOtherDriver && <div style={{ fontSize: 11, color: C.teal }}>✓ Tarif sous-traitant appliqué</div>}
           </div>
         )}
 
@@ -2234,16 +2236,30 @@ export default function App() {
                     <>
                       {/* Totaux annuels */}
                       <Card style={{ borderColor: `${C.gold}44` }}>
-                        <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontWeight: 700 }}>Total {year}</div>
-                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: 1 }}>CA Brut</div><div style={{ fontSize: 22, fontWeight: 800, color: C.gold, fontFamily: "monospace" }}>{fmt(totalCA)}</div></div>
-                          {!isComm && <><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: 1 }}>Frais</div><div style={{ fontSize: 22, fontWeight: 800, color: C.red, fontFamily: "monospace" }}>{fmt(totalFraisA)}</div></div>
-                          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: 1 }}>Net</div><div style={{ fontSize: 22, fontWeight: 800, color: totalNet >= 0 ? C.green : C.red, fontFamily: "monospace" }}>{fmt(totalNet)}</div></div></>}
-                          {!isComm && totalCommMarge > 0 && <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 10, color: C.green, textTransform: "uppercase", letterSpacing: 1 }}>Part commissions</div><div style={{ fontSize: 22, fontWeight: 800, color: C.green, fontFamily: "monospace" }}>{fmt(totalCommMarge / 2)}</div></div>}
-                          {isComm && <><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 10, color: C.green, textTransform: "uppercase", letterSpacing: 1 }}>Marge</div><div style={{ fontSize: 22, fontWeight: 800, color: C.green, fontFamily: "monospace" }}>{fmt(totalCA - totalCC)}</div></div>
-                          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 10, color: C.blue, textTransform: "uppercase", letterSpacing: 1 }}>Part / pers.</div><div style={{ fontSize: 22, fontWeight: 800, color: C.blue, fontFamily: "monospace" }}>{fmt((totalCA - totalCC) / 2)}</div></div></>}
+                        <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12, fontWeight: 700 }}>Total {year}</div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                          {(() => {
+                            const boxes = [
+                              { label: "CA Brut", val: fmt(totalCA), color: C.gold },
+                              ...(!isComm ? [
+                                { label: "Frais", val: fmt(totalFraisA), color: C.red },
+                                { label: "Net", val: fmt(totalNet), color: totalNet >= 0 ? C.green : C.red },
+                                ...(totalCommMarge > 0 ? [{ label: "Part commissions", val: fmt(totalCommMarge / 2), color: C.green }] : []),
+                                ...(totalTipsA > 0 ? [{ label: "Pourboires", val: fmt(totalTipsA), color: C.green }] : []),
+                              ] : [
+                                { label: "Marge nette", val: fmt(totalCA - totalCC), color: C.green },
+                                { label: "Part Oumar", val: fmt((totalCA - totalCC) / 2), color: C.blue },
+                                { label: "Part Mohamed", val: fmt((totalCA - totalCC) / 2), color: C.blue },
+                              ]),
+                            ];
+                            return boxes.map((b, i) => (
+                              <div key={i} style={{ background: C.surface, borderRadius: 10, padding: "10px 12px" }}>
+                                <div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>{b.label}</div>
+                                <div style={{ fontSize: 18, fontWeight: 800, color: b.color, fontFamily: "monospace", wordBreak: "break-all" }}>{b.val}</div>
+                              </div>
+                            ));
+                          })()}
                         </div>
-                        {!isComm && totalTipsA > 0 && <div style={{ fontSize: 12, color: C.green, marginTop: 8 }}>+ {fmt(totalTipsA)} de pourboires</div>}
                       </Card>
                       {/* Mois */}
                       {months.map(([mk2, d]) => {
@@ -2253,18 +2269,24 @@ export default function App() {
                         const hasData = d.ca > 0 || d.frais > 0;
                         return (
                           <Card key={mk2} style={{ opacity: hasData ? 1 : 0.45 }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                              <div>
-                                <div style={{ fontSize: 14, fontWeight: 700, color: C.text, textTransform: "capitalize" }}>{MOIS[mIdx]}</div>
-                                {hasData && !isComm && <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Net : <span style={{ color: net >= 0 ? C.green : C.red, fontWeight: 700 }}>{fmt(net)}</span>{d.commMarge > 0 && <span style={{ color: C.green }}> + {fmt(d.commMarge / 2)} comm.</span>}</div>}
-                                {hasData && isComm && <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Part/pers : <span style={{ color: C.green, fontWeight: 700 }}>{fmt(marge / 2)}</span></div>}
-                                {!hasData && <div style={{ fontSize: 11, color: C.muted }}>Aucune donnée</div>}
-                              </div>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                              <div style={{ fontSize: 14, fontWeight: 700, color: C.text, textTransform: "capitalize" }}>{MOIS[mIdx]}</div>
                               <div style={{ textAlign: "right" }}>
-                                <div style={{ fontSize: 18, fontWeight: 800, color: C.gold, fontFamily: "monospace" }}>{hasData ? fmt(d.ca) : "—"}</div>
-                                {d.frais > 0 && !isComm && <div style={{ fontSize: 11, color: C.red, fontFamily: "monospace" }}>−{fmt(d.frais)} frais</div>}
+                                <div style={{ fontSize: 17, fontWeight: 800, color: hasData ? C.gold : C.muted, fontFamily: "monospace" }}>{hasData ? fmt(d.ca) : "—"}</div>
+                                {hasData && !isComm && <div style={{ fontSize: 11, color: net >= 0 ? C.green : C.red, fontFamily: "monospace", marginTop: 2 }}>Net {fmt(net)}</div>}
+                                {hasData && isComm && <div style={{ fontSize: 11, color: C.green, fontFamily: "monospace", marginTop: 2 }}>Part {fmt(marge / 2)}</div>}
                               </div>
                             </div>
+                            {hasData && (
+                              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                                {!isComm && d.frais > 0 && <span style={{ fontSize: 11, color: C.red, background: `${C.red}12`, borderRadius: 5, padding: "2px 7px" }}>−{fmt(d.frais)} frais</span>}
+                                {!isComm && d.cc > 0 && <span style={{ fontSize: 11, color: C.muted, background: C.surface, borderRadius: 5, padding: "2px 7px" }}>−{fmt(d.cc)} chauff.</span>}
+                                {!isComm && d.commMarge > 0 && <span style={{ fontSize: 11, color: C.green, background: `${C.green}12`, borderRadius: 5, padding: "2px 7px" }}>+{fmt(d.commMarge / 2)} comm.</span>}
+                                {!isComm && d.tips > 0 && <span style={{ fontSize: 11, color: C.green, background: `${C.green}12`, borderRadius: 5, padding: "2px 7px" }}>+{fmt(d.tips)} tips</span>}
+                                {isComm && d.cc > 0 && <span style={{ fontSize: 11, color: C.muted, background: C.surface, borderRadius: 5, padding: "2px 7px" }}>−{fmt(d.cc)} chauff.</span>}
+                              </div>
+                            )}
+                            {!hasData && <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Aucune donnée</div>}
                           </Card>
                         );
                       })}
