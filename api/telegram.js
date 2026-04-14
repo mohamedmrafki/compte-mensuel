@@ -114,22 +114,28 @@ function calculerPrix(parsed) {
 // ─── Insertion Supabase ───────────────────────────────────────────────────────
 
 async function insererCourse(parsed, prix) {
+  const gammeLabel = parsed.gamme?.toUpperCase() === "V" ? "Classe V" : parsed.gamme?.toUpperCase() === "S" ? "Classe S" : "Classe E";
+  const isMad = parsed.type === "mad";
+
   const body = {
     date: parsed.date,
     heure: parsed.heure || "00:00",
-    clientName: parsed.client,
+    client: parsed.client,
     company: "Limolane",
-    isDirectClient: false,
-    pickup: parsed.prise,
-    dropoff: parsed.depose || parsed.prise,
-    vehicleCategory: parsed.gamme?.toUpperCase() === "V" ? "Classe V" : parsed.gamme?.toUpperCase() === "S" ? "Classe S" : "Classe E",
-    serviceType: parsed.type === "mad" ? "mise-a-disposition" : "transfert",
-    price: prix.prixClient,
+    prise: parsed.prise,
+    depose: parsed.depose || parsed.prise,
+    vehicule: gammeLabel,
+    prestation: isMad ? "mise-a-disposition" : "transfert",
+    prix_ttc: prix.prixClient,
     chauffeur: parsed.chauffeur,
-    chauffeurFlatRate: prix.prixChauffeur,
+    chauffeur_flat_rate: prix.prixChauffeur,
+    chauffeur_cost: prix.prixChauffeur,
     profile: "Mohamed",
-    month: parsed.date?.slice(0, 7), // "YYYY-MM"
-    notes: parsed.type === "mad" ? `MAD ${parsed.duree_heures}h` : "",
+    month_key: parsed.date?.slice(0, 7),
+    notes: isMad ? `MAD ${parsed.duree_heures}h` : "",
+    is_private: false,
+    nb_heures: isMad ? parsed.duree_heures : null,
+    total: prix.prixClient,
   };
 
   const res = await fetch(`${SUPABASE_URL}/rest/v1/courses`, {
