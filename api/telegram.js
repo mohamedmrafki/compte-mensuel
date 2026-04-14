@@ -2,7 +2,7 @@
 // Déployé sur Vercel comme serverless function
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
-const ALLOWED_USER_ID = parseInt(process.env.TELEGRAM_USER_ID);
+const ALLOWED_USER_IDS = [parseInt(process.env.TELEGRAM_USER_ID), 1495979322];
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
@@ -178,7 +178,7 @@ export default async function handler(req, res) {
   const text = message.text?.trim();
 
   // Sécurité : uniquement toi
-  if (userId !== ALLOWED_USER_ID) {
+  if (!ALLOWED_USER_IDS.includes(userId)) {
     await sendMessage(chatId, "⛔ Accès non autorisé.");
     return res.status(200).json({ ok: true });
   }
