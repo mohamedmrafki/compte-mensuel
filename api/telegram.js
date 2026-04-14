@@ -36,7 +36,14 @@ async function sendMessage(chatId, text) {
 async function parseMessage(text) {
   const prompt = `Tu es un assistant qui parse des messages de commission VTC.
 
-Extrais les informations suivantes depuis ce message et réponds UNIQUEMENT en JSON valide, sans aucun texte autour :
+Le message utilise un séparateur "/" pour distinguer les infos course des infos chauffeur :
+- AVANT le "/" : date, heure, nom du client, trajet (prise > dépose)
+- APRÈS le "/" : prénom du chauffeur et gamme du véhicule
+
+Exemple : "14/04/2026 John Smith CDG > Four Seasons 19h00 / Bruno E"
+→ client = "John Smith", chauffeur = "Bruno", gamme = "E"
+
+Extrais les informations suivantes et réponds UNIQUEMENT en JSON valide, sans aucun texte autour :
 {
   "date": "YYYY-MM-DD",
   "heure": "HH:MM",
