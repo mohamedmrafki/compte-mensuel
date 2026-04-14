@@ -138,7 +138,7 @@ async function insererCourse(parsed, prix) {
     chauffeur: parsed.chauffeur,
     chauffeur_flat_rate: prix.prixChauffeur,
     chauffeur_cost: prix.prixChauffeur,
-    profile: "Commission",
+    profile: "commission",
     month_key: parsed.date?.slice(0, 7),
     notes: isMad ? `MAD ${parsed.duree_heures}h` : "",
     is_private: false,
