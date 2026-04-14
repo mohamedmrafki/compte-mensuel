@@ -113,11 +113,19 @@ function calculerPrix(parsed) {
 
 // ─── Insertion Supabase ───────────────────────────────────────────────────────
 
+function generateUUID() {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
 async function insererCourse(parsed, prix) {
   const gammeLabel = parsed.gamme?.toUpperCase() === "V" ? "Classe V" : parsed.gamme?.toUpperCase() === "S" ? "Classe S" : "Classe E";
   const isMad = parsed.type === "mad";
 
   const body = {
+    id: generateUUID(),
     date: parsed.date,
     heure: parsed.heure || "00:00",
     client: parsed.client,
