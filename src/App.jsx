@@ -51,6 +51,8 @@ const SOUS_TRAITANT_TARIFS_DEFAULT = {
   "Classe S": { aeroport: 130, paris: 80, mad: 80 },
 };
 const loadTarifs = () => { try { return JSON.parse(localStorage.getItem("sous_traitant_tarifs")) || SOUS_TRAITANT_TARIFS_DEFAULT; } catch { return SOUS_TRAITANT_TARIFS_DEFAULT; } };
+const CHAUFFEUR_SEC_TARIFS_DEFAULT = { aeroport: 0, paris: 0, mad: 0 };
+const getChauffeurSecTarifs = () => { try { return JSON.parse(localStorage.getItem("chauffeur_sec_tarifs")) || CHAUFFEUR_SEC_TARIFS_DEFAULT; } catch { return CHAUFFEUR_SEC_TARIFS_DEFAULT; } };
 const isAeroportTrajet = (prise, depose) => AEROPORTS.some(a => (prise || "").toUpperCase().includes(a) || (depose || "").toUpperCase().includes(a));
 
 const PROFILES = [
@@ -509,29 +511,50 @@ ${mf.length>0?`<p class="sectitle">💸 Frais</p><div class="sec"><table><thead>
 }
 
 // ── Modal Grille Tarifaire ─────────────────────────────────────────────────────
-function TarifsModal({ tarifs, onSave, onClose }) {
+function TarifsModal({ tarifs, onSave, tarifsSecInit, onSaveSec, onClose }) {
   const [t, setT] = useState(JSON.parse(JSON.stringify(tarifs)));
+  const [s, setS] = useState({ ...CHAUFFEUR_SEC_TARIFS_DEFAULT, ...(tarifsSecInit || {}) });
   const set = (v, k, val) => setT(p => ({ ...p, [v]: { ...p[v], [k]: val } }));
+  const setSec = (k, val) => setS(p => ({ ...p, [k]: val }));
+  const SEC_ROWS = [
+    { key: "aeroport", label: "✈️ Aéroport (CDG/ORY/LBG)" },
+    { key: "paris",    label: "🗼 Paris / Gare" },
+    { key: "mad",      label: "⏱ Mise à dispo (€/h)" },
+  ];
   return (
-    <Modal title="⚙️ Grille tarifaire sous-traitants" onClose={onClose}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "80px 1fr 1fr 1fr", gap: 8, alignItems: "center" }}>
-          <div />
-          {["✈️ Aéroport", "🗼 Paris/Gare", "⏱ MAD/h"].map(l => (
-            <div key={l} style={{ fontSize: 11, color: C.muted, fontWeight: 700, textAlign: "center", textTransform: "uppercase", letterSpacing: 1 }}>{l}</div>
-          ))}
-          {VEHICULES.map(v => (
-            <>
-              <div key={v+"lbl"} style={{ fontSize: 12, fontWeight: 700, color: vColor(v) }}>{vIcon(v)} {v.replace("Classe ","")}</div>
-              {["aeroport","paris","mad"].map(k => (
-                <input key={k} type="number" value={t[v]?.[k] ?? ""} onChange={e => set(v, k, e.target.value)}
-                  style={{ ...iBase, textAlign: "center" }} />
-              ))}
-            </>
+    <Modal title="⚙️ Grilles tarifaires" onClose={onClose}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        {/* Sous-traitants */}
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.teal, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>🤝 Sous-traitants (par véhicule)</div>
+          <div style={{ display: "grid", gridTemplateColumns: "80px 1fr 1fr 1fr", gap: 8, alignItems: "center" }}>
+            <div />
+            {["✈️ Aéro", "🗼 Paris", "⏱ MAD/h"].map(l => (
+              <div key={l} style={{ fontSize: 11, color: C.muted, fontWeight: 700, textAlign: "center", textTransform: "uppercase", letterSpacing: 1 }}>{l}</div>
+            ))}
+            {VEHICULES.map(v => (
+              <React.Fragment key={v}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: vColor(v) }}>{vIcon(v)} {v.replace("Classe ","")}</div>
+                {["aeroport","paris","mad"].map(k => (
+                  <input key={k} type="number" value={t[v]?.[k] ?? ""} onChange={e => set(v, k, e.target.value)} style={{ ...iBase, textAlign: "center" }} />
+                ))}
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+        {/* Chauffeur sec */}
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.blue, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>🚗 Chauffeur Sec (tarif unique tous véhicules)</div>
+          <div style={{ fontSize: 11, color: C.muted, marginBottom: 10 }}>Appliqué à tous les véhicules — un seul tarif.</div>
+          {SEC_ROWS.map(row => (
+            <div key={row.key} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+              <div style={{ flex: 1, fontSize: 13, color: C.muted }}>{row.label}</div>
+              <input type="number" value={s[row.key] ?? ""} onChange={e => setSec(row.key, e.target.value)} placeholder="—" style={{ ...iBase, width: 90, textAlign: "right" }} />
+              <span style={{ fontSize: 12, color: C.muted, minWidth: 20 }}>{row.key === "mad" ? "€/h" : "€"}</span>
+            </div>
           ))}
         </div>
-        <div style={{ fontSize: 11, color: C.muted }}>Les tarifs MAD sont en €/heure.</div>
-        <Btn onClick={() => { onSave(t); onClose(); }}>Enregistrer</Btn>
+        <Btn onClick={() => { onSave(t); onSaveSec(s); onClose(); }}>💾 Enregistrer les deux grilles</Btn>
       </div>
     </Modal>
   );
@@ -562,7 +585,7 @@ function computeChauffeurCost(f) {
   return "";
 }
 
-function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, savedChauffeurs, onSaveChauffeur, defaultChauffeur, sousTraitantTarifs, savedClients, onSaveClient }) {
+function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, savedChauffeurs, onSaveChauffeur, defaultChauffeur, sousTraitantTarifs, savedClients, onSaveClient, chauffeurObjects }) {
   const [f, setF] = useState(() => initial ? { supplements: [], ...initial } : defCourse(defaultChauffeur));
   const [tarifType, setTarifType] = useState(() => initial?.prestation === "mad" ? "mad" : null);
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
@@ -572,19 +595,32 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
     setF(p => ({ ...p, total: computeTotal(p), chauffeurCost: computeChauffeurCost(p) }));
   }, [f.prestation, f.prixTTC, f.tauxHoraire, f.nbHeures, f.chauffeurFlatRate, f.chauffeurHourlyRate, JSON.stringify(f.supplements)]);
 
-  // Auto-fill tarif sous-traitant depuis la grille
+  // Auto-fill tarif chauffeur depuis la grille (sec ou sous-traitant)
   useEffect(() => {
     const isOther = f.chauffeur && f.chauffeur !== defaultChauffeur;
     if (!isOther || !f.vehicule) return;
-    const tarifs = (sousTraitantTarifs || loadTarifs())[f.vehicule];
-    if (!tarifs) return;
-    if (tarifType === "mad" || f.prestation === "mad") {
-      if (tarifs.mad) setF(p => ({ ...p, chauffeurHourlyRate: String(tarifs.mad) }));
+    const chObj = (chauffeurObjects || []).find(c => c.name.toLowerCase() === f.chauffeur.toLowerCase());
+    const isSec = chObj?.type === "sec";
+    if (isSec) {
+      // Grille sec : tarif unique indépendant du véhicule
+      const tarifs = getChauffeurSecTarifs();
+      if (tarifType === "mad" || f.prestation === "mad") {
+        if (tarifs.mad) setF(p => ({ ...p, chauffeurHourlyRate: String(tarifs.mad) }));
+      } else {
+        const detected = tarifType === "aeroport" ? "aeroport" : tarifType === "paris" ? "paris" : (isAeroportTrajet(f.prise, f.depose) ? "aeroport" : "paris");
+        if (tarifs[detected]) setF(p => ({ ...p, chauffeurFlatRate: String(tarifs[detected]) }));
+      }
     } else {
-      // tarifType explicite ou détection auto via adresses
-      const detected = tarifType === "aeroport" ? "aeroport" : tarifType === "paris" ? "paris" : (isAeroportTrajet(f.prise, f.depose) ? "aeroport" : "paris");
-      const rate = tarifs[detected];
-      if (rate) setF(p => ({ ...p, chauffeurFlatRate: String(rate) }));
+      // Grille sous-traitant : tarif par véhicule
+      const tarifs = (sousTraitantTarifs || loadTarifs())[f.vehicule];
+      if (!tarifs) return;
+      if (tarifType === "mad" || f.prestation === "mad") {
+        if (tarifs.mad) setF(p => ({ ...p, chauffeurHourlyRate: String(tarifs.mad) }));
+      } else {
+        const detected = tarifType === "aeroport" ? "aeroport" : tarifType === "paris" ? "paris" : (isAeroportTrajet(f.prise, f.depose) ? "aeroport" : "paris");
+        const rate = tarifs[detected];
+        if (rate) setF(p => ({ ...p, chauffeurFlatRate: String(rate) }));
+      }
     }
   }, [f.chauffeur, f.vehicule, f.prestation, f.prise, f.depose, tarifType]);
 
@@ -766,7 +802,13 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
           <div style={{ background: `${C.orange}12`, border: `2px solid ${C.orange}55`, borderRadius: 12, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ fontSize: 12, color: C.orange, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>💰 Tarif payé à {f.chauffeur}</div>
-              {(sousTraitantTarifs || loadTarifs())[f.vehicule] && <span style={{ fontSize: 11, color: C.green, background: `${C.green}18`, borderRadius: 6, padding: "2px 8px" }}>Grille auto</span>}
+              {(() => {
+                const chObj = (chauffeurObjects || []).find(c => c.name.toLowerCase() === (f.chauffeur || "").toLowerCase());
+                const isSec = chObj?.type === "sec";
+                return isSec
+                  ? <span style={{ fontSize: 11, color: C.blue, background: `${C.blue}18`, borderRadius: 6, padding: "2px 8px" }}>🚗 Grille sec</span>
+                  : <span style={{ fontSize: 11, color: C.teal, background: `${C.teal}18`, borderRadius: 6, padding: "2px 8px" }}>🤝 Grille ST</span>;
+              })()}
             </div>
             {f.prestation === "transfert" ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -953,7 +995,7 @@ function CompanyInfoModal({ initial, onSave, onClose }) {
 }
 
 // ── Modal Chauffeurs ──────────────────────────────────────────────────────────
-function ChauffeurSettingsModal({ savedChauffeurs, defaultChauffeur, onSetDefault, onAdd, onDelete, onClose }) {
+function ChauffeurSettingsModal({ chauffeurObjects, defaultChauffeur, onSetDefault, onAdd, onDelete, onUpdateType, onClose }) {
   const [newName, setNewName] = useState("");
   return (
     <Modal title="Gérer les chauffeurs" onClose={onClose}>
@@ -962,15 +1004,23 @@ function ChauffeurSettingsModal({ savedChauffeurs, defaultChauffeur, onSetDefaul
           <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Nouveau chauffeur…" style={{ ...iBase, flex: 1 }} onKeyDown={e => { if (e.key === "Enter" && newName.trim()) { onAdd(newName.trim()); setNewName(""); } }} />
           <Btn small onClick={() => { if (newName.trim()) { onAdd(newName.trim()); setNewName(""); } }}>Ajouter</Btn>
         </div>
-        {savedChauffeurs.map(c => (
-          <div key={c} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: C.surface, borderRadius: 10, padding: "10px 14px", border: defaultChauffeur === c ? `1px solid ${C.gold}` : `1px solid ${C.border}` }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span>🧑‍✈️</span><span style={{ fontWeight: 600 }}>{c}</span>
-              {defaultChauffeur === c && <span style={{ fontSize: 11, color: C.gold, background: `${C.gold}20`, borderRadius: 4, padding: "2px 7px" }}>Par défaut</span>}
+        {chauffeurObjects.map(ch => (
+          <div key={ch.id} style={{ background: C.surface, borderRadius: 12, padding: "12px 14px", border: defaultChauffeur === ch.name ? `1px solid ${C.gold}` : `1px solid ${C.border}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span>🧑‍✈️</span>
+                <span style={{ fontWeight: 700, fontSize: 14 }}>{ch.name}</span>
+                {defaultChauffeur === ch.name && <span style={{ fontSize: 11, color: C.gold, background: `${C.gold}20`, borderRadius: 4, padding: "2px 7px" }}>Par défaut</span>}
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {defaultChauffeur !== ch.name && <Btn small variant="ghost" onClick={() => onSetDefault(ch.name)} style={{ color: C.gold, fontSize: 11 }}>⭐ Défaut</Btn>}
+                <Btn small variant="danger" onClick={() => onDelete(ch.name)}>🗑</Btn>
+              </div>
             </div>
             <div style={{ display: "flex", gap: 6 }}>
-              {defaultChauffeur !== c && <Btn small variant="ghost" onClick={() => onSetDefault(c)} style={{ color: C.gold, fontSize: 11 }}>⭐ Défaut</Btn>}
-              <Btn small variant="danger" onClick={() => onDelete(c)}>🗑</Btn>
+              {[["sec","🚗 Chauffeur Sec",C.blue],["sous_traitant","🤝 Sous-traitant",C.teal]].map(([val, lbl, col]) => (
+                <button key={val} onClick={() => onUpdateType(ch.name, val)} style={{ flex: 1, padding: "7px 4px", borderRadius: 8, border: `2px solid ${(ch.type || "sous_traitant") === val ? col : C.border}`, background: (ch.type || "sous_traitant") === val ? `${col}18` : "transparent", color: (ch.type || "sous_traitant") === val ? col : C.muted, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{lbl}</button>
+              ))}
             </div>
           </div>
         ))}
@@ -1166,6 +1216,7 @@ export default function App() {
   const [showObjectifInput, setShowObjectifInput] = useState(false);
   const [objectifInputVal, setObjectifInputVal] = useState("");
   const [sousTraitantTarifs, setSousTraitantTarifs] = useState(loadTarifs);
+  const [chauffeurSecTarifs, setChauffeurSecTarifs] = useState(getChauffeurSecTarifs);
   const [showTarifsModal, setShowTarifsModal] = useState(false);
   const [annualData, setAnnualData] = useState(null);
   const [annualLoading, setAnnualLoading] = useState(false);
@@ -1445,11 +1496,18 @@ export default function App() {
   const handleSaveChauffeur = async (name) => {
     if (!chauffeurObjects.some(c => c.name.toLowerCase() === name.toLowerCase())) {
       const isFirst = chauffeurObjects.length === 0;
-      const newCh = { id: uid(), name, is_default: isFirst, profile };
+      const newCh = { id: uid(), name, is_default: isFirst, profile, type: "sous_traitant" };
       if (!DEMO_MODE) await supabase.from("chauffeurs").upsert(newCh);
       setChauffeurObjects(prev => [...prev, newCh]);
       if (isFirst) setDefaultChauffeur(name);
     }
+  };
+  const handleUpdateChauffeurType = async (name, type) => {
+    const ch = chauffeurObjects.find(c => c.name === name);
+    if (!ch) return;
+    const updated = { ...ch, type };
+    if (!DEMO_MODE) await supabase.from("chauffeurs").upsert({ ...updated, profile });
+    setChauffeurObjects(prev => prev.map(c => c.name === name ? updated : c));
   };
   const handleDeleteChauffeur = async (name) => {
     if (!window.confirm(`Supprimer ${name} ?`)) return;
@@ -1505,6 +1563,11 @@ export default function App() {
     VEHICULES.forEach(v => { saved[v] = { aeroport: Number(t[v]?.aeroport || 0), paris: Number(t[v]?.paris || 0), mad: Number(t[v]?.mad || 0) }; });
     localStorage.setItem("sous_traitant_tarifs", JSON.stringify(saved));
     setSousTraitantTarifs(saved);
+  };
+  const saveChauffeurSecTarifs = (s) => {
+    const saved = { aeroport: Number(s.aeroport || 0), paris: Number(s.paris || 0), mad: Number(s.mad || 0) };
+    localStorage.setItem("chauffeur_sec_tarifs", JSON.stringify(saved));
+    setChauffeurSecTarifs(saved);
   };
 
   // ── Statut paiement chauffeur ────────────────────────────────────────────────
@@ -1848,10 +1911,21 @@ export default function App() {
                 })()}
                 {Object.keys(byChauffeur).length === 0
                   ? <div style={{ textAlign: "center", padding: 24, color: C.muted }}><div style={{ fontSize: 32 }}>🧑‍✈️</div><div style={{ marginTop: 6 }}>Aucun autre chauffeur ce mois</div></div>
-                  : Object.entries(byChauffeur).map(([name, d]) => (
+                  : Object.entries(byChauffeur).map(([name, d]) => {
+                    const chObj = chauffeurObjects.find(c => c.name === name);
+                    const isSec = chObj?.type === "sec";
+                    return (
                     <Card key={name} style={{ borderColor: isChauffeurPaid(name) ? `${C.green}55` : `${C.orange}44` }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                        <div><div style={{ fontWeight: 700, fontSize: 16 }}>🧑‍✈️ {name}</div><div style={{ fontSize: 12, color: C.orange }}>Chauffeur externe</div></div>
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div style={{ fontWeight: 700, fontSize: 16 }}>🧑‍✈️ {name}</div>
+                            {isSec
+                              ? <span style={{ fontSize: 11, fontWeight: 700, color: C.blue, background: `${C.blue}18`, borderRadius: 20, padding: "2px 8px" }}>🚗 Sec</span>
+                              : <span style={{ fontSize: 11, fontWeight: 700, color: C.teal, background: `${C.teal}18`, borderRadius: 20, padding: "2px 8px" }}>🤝 ST</span>}
+                          </div>
+                          <div style={{ fontSize: 12, color: C.orange }}>{isSec ? "Chauffeur sec" : "Sous-traitant"}</div>
+                        </div>
                         <div style={{ textAlign: "right" }}><div style={{ fontSize: 11, color: C.muted }}>CA généré</div><div style={{ fontWeight: 700, fontSize: 16, color: C.gold, fontFamily: "monospace" }}>{fmt(d.ca)}</div></div>
                       </div>
                       <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
@@ -1880,7 +1954,8 @@ export default function App() {
                         ))}
                       </div>
                     </Card>
-                  ))
+                  );
+                  })
                 }
                 {Object.keys(byChauffeur).length > 0 && (
                   <Card>
@@ -2304,11 +2379,11 @@ export default function App() {
       {/* Modales */}
       {showRecurringModal && <RecurringFraisModal recurringFrais={recurringFrais} onSave={handleSaveRecurring} onClose={() => setShowRecurringModal(false)} />}
       {showMonthPicker && <MonthPickerModal year={year} month={month} onChange={(y, m) => { setYear(y); setMonth(m); }} onClose={() => setShowMonthPicker(false)} />}
-      {(showCourseModal || editCourse) && <CourseModal initial={editCourse} onSave={saveCourse} onClose={() => { setShowCourseModal(false); setEditCourse(null); }} savedCompanies={savedCompanies} onSaveCompany={handleSaveCompany} savedChauffeurs={savedChauffeurs} onSaveChauffeur={handleSaveChauffeur} defaultChauffeur={defaultChauffeur} sousTraitantTarifs={sousTraitantTarifs} savedClients={savedClients} onSaveClient={handleQuickSaveClient} />}
+      {(showCourseModal || editCourse) && <CourseModal initial={editCourse} onSave={saveCourse} onClose={() => { setShowCourseModal(false); setEditCourse(null); }} savedCompanies={savedCompanies} onSaveCompany={handleSaveCompany} savedChauffeurs={savedChauffeurs} onSaveChauffeur={handleSaveChauffeur} defaultChauffeur={defaultChauffeur} sousTraitantTarifs={sousTraitantTarifs} savedClients={savedClients} onSaveClient={handleQuickSaveClient} chauffeurObjects={chauffeurObjects} />}
       {(showFraisModal || editFrais) && <FraisModal initial={editFrais} onSave={saveFrais} onClose={() => { setShowFraisModal(false); setEditFrais(null); }} />}
       {editCompany && <CompanyInfoModal initial={editCompany} onSave={handleSaveCompany} onClose={() => setEditCompany(null)} />}
-      {showChauffeurSettings && <ChauffeurSettingsModal savedChauffeurs={savedChauffeurs} defaultChauffeur={defaultChauffeur} onSetDefault={handleSetDefault} onAdd={handleSaveChauffeur} onDelete={handleDeleteChauffeur} onClose={() => setShowChauffeurSettings(false)} />}
-      {showTarifsModal && <TarifsModal tarifs={sousTraitantTarifs} onSave={saveTarifs} onClose={() => setShowTarifsModal(false)} />}
+      {showChauffeurSettings && <ChauffeurSettingsModal chauffeurObjects={chauffeurObjects} defaultChauffeur={defaultChauffeur} onSetDefault={handleSetDefault} onAdd={handleSaveChauffeur} onDelete={handleDeleteChauffeur} onUpdateType={handleUpdateChauffeurType} onClose={() => setShowChauffeurSettings(false)} />}
+      {showTarifsModal && <TarifsModal tarifs={sousTraitantTarifs} onSave={saveTarifs} tarifsSecInit={chauffeurSecTarifs} onSaveSec={saveChauffeurSecTarifs} onClose={() => setShowTarifsModal(false)} />}
       {editClient && <ClientModal initial={editClient.nom ? editClient : null} onSave={handleSaveClient} onClose={() => setEditClient(null)} />}
       {reminderClient && <ReminderModal client={reminderClient} onClose={() => setReminderClient(null)} />}
 
