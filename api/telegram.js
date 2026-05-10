@@ -191,7 +191,7 @@ export default async function handler(req, res) {
   }
 
   if (!text || text.startsWith("/")) {
-    await sendMessage(chatId, "👋 Envoie un message comme :\n<code>14/04/2026 John Smith CDG &gt; Four Seasons Paris 19h00 Bruno E</code>");
+    await sendMessage(chatId, "👋 Envoie un message comme :\n<code>14/04/2026 John Smith CDG &gt; Four Seasons Paris 19h00 / Bruno E</code>");
     return res.status(200).json({ ok: true });
   }
 
@@ -201,7 +201,7 @@ export default async function handler(req, res) {
     // 1. Parser le message
     const parsed = await parseMessage(text);
     if (!parsed || !parsed.date || !parsed.gamme) {
-      await sendMessage(chatId, "❌ Je n'ai pas réussi à parser le message. Vérifie le format :\n<code>14/04/2026 John Smith CDG &gt; Four Seasons Paris 19h00 Bruno E</code>");
+      await sendMessage(chatId, "❌ Je n'ai pas réussi à parser le message. Vérifie le format :\n<code>14/04/2026 John Smith CDG &gt; Four Seasons Paris 19h00 / Bruno E</code>");
       return res.status(200).json({ ok: true });
     }
 
