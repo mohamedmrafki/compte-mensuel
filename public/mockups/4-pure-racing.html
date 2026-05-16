@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover" />
+<title>Maquette 4 — Pure Racing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&family=Inter:wght@500;700;800&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0E0E0E;
+    color: #E8E8E8;
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    padding: 20px 16px 80px;
+    max-width: 480px;
+    margin: 0 auto;
+    -webkit-font-smoothing: antialiased;
+    /* texture carbone très subtile */
+    background-image:
+      repeating-linear-gradient(45deg, rgba(255,255,255,0.012) 0 1px, transparent 1px 4px),
+      repeating-linear-gradient(-45deg, rgba(255,255,255,0.012) 0 1px, transparent 1px 4px);
+    background-color: #0E0E0E;
+  }
+  .back { display: inline-flex; align-items: center; gap: 6px; color: #1F8F5C; text-decoration: none; font-size: 11px; margin-bottom: 18px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
+  .title-section { padding-bottom: 18px; border-bottom: 2px solid #1F8F5C; margin-bottom: 22px; }
+  .eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #5A8F75; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 700; margin-bottom: 8px; }
+  .h1 {
+    font-family: 'Inter', sans-serif;
+    font-size: 30px; font-weight: 800;
+    letter-spacing: -0.04em; line-height: 1;
+    color: #FFFFFF; text-transform: uppercase;
+  }
+  .h1 .dot { color: #1F8F5C; }
+  .month-pill {
+    display: inline-flex; gap: 8px; align-items: baseline;
+    background: #1A1A1A;
+    border: 1px solid #2A2A2A;
+    border-left: 3px solid #1F8F5C;
+    padding: 8px 14px; margin-top: 14px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .month-pill .y { font-size: 11px; color: #5A8F75; font-weight: 700; }
+  .month-pill .m { font-size: 14px; color: #FFFFFF; font-weight: 800; text-transform: uppercase; }
+  .pills { display: flex; gap: 4px; overflow-x: auto; margin-bottom: 24px; padding-bottom: 6px; }
+  .pill {
+    padding: 8px 14px; white-space: nowrap;
+    background: #1A1A1A;
+    border: 1px solid #2A2A2A;
+    color: #6A6A6A; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .pill.active {
+    background: #1F8F5C;
+    border: 1px solid #1F8F5C;
+    color: #0E0E0E;
+  }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 22px; }
+  .stat {
+    background: #1A1A1A;
+    border: 1px solid #2A2A2A;
+    padding: 16px 14px;
+    position: relative;
+  }
+  .stat::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: #1F8F5C;
+  }
+  .stat.red::before { background: #B22234; }
+  .stat-label { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: #5A8F75; text-transform: uppercase; letter-spacing: 0.25em; margin-bottom: 8px; font-weight: 700; }
+  .stat.red .stat-label { color: #C44; }
+  .stat-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 28px; font-weight: 800; color: #FFFFFF;
+    letter-spacing: -0.04em;
+  }
+  .stat-value.red { color: #FF5555; }
+  .stat-value.green { color: #4DD68C; }
+  .stat-sub { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: #555; margin-top: 4px; letter-spacing: 0.1em; }
+  .section-title {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    color: #5A8F75; margin: 26px 0 12px;
+    letter-spacing: 0.3em; text-transform: uppercase; font-weight: 800;
+    padding-bottom: 8px; border-bottom: 1px dashed #2A2A2A;
+  }
+  .course {
+    background: #1A1A1A;
+    border: 1px solid #2A2A2A;
+    padding: 14px 16px;
+    margin-bottom: 6px;
+    position: relative;
+  }
+  .course::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: #1F8F5C; opacity: 0;
+  }
+  .course:hover { border-color: #1F8F5C; }
+  .course:hover::before { opacity: 1; }
+  .course-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+  .course-client { font-size: 15px; font-weight: 700; color: #FFFFFF; }
+  .course-amount { font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 800; color: #4DD68C; letter-spacing: -0.03em; }
+  .course-meta { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #6A6A6A; display: flex; flex-wrap: wrap; gap: 8px; letter-spacing: 0.05em; }
+  .badge {
+    display: inline-block; font-size: 9px; padding: 2px 6px;
+    background: #1F8F5C; color: #0E0E0E; letter-spacing: 0.15em;
+    text-transform: uppercase; font-weight: 800;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .fab {
+    position: fixed; bottom: 24px; right: 24px;
+    width: 56px; height: 56px;
+    background: #1F8F5C;
+    border: none; cursor: pointer; font-size: 30px; color: #0E0E0E; font-weight: 400;
+    box-shadow: 0 8px 20px rgba(31,143,92,0.4);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+  }
+</style>
+</head>
+<body>
+  <a href="/mockups/" class="back">← Retour aux 4 maquettes</a>
+
+  <div class="title-section">
+    <div class="eyebrow">// FAIZ TRANSPORT · OUMAR</div>
+    <div class="h1">Mes Comptes<span class="dot">.</span></div>
+    <div class="month-pill"><span class="y">2026 //</span><span class="m">MAI</span></div>
+  </div>
+
+  <div class="pills">
+    <div class="pill active">Résumé</div>
+    <div class="pill">Courses</div>
+    <div class="pill">Frais</div>
+    <div class="pill">Sociétés</div>
+    <div class="pill">Année</div>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-label">CA brut</div>
+      <div class="stat-value">8420€</div>
+      <div class="stat-sub">42 courses</div>
+    </div>
+    <div class="stat red">
+      <div class="stat-label">Frais</div>
+      <div class="stat-value red">1250€</div>
+      <div class="stat-sub">8 dépenses</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Pourboires</div>
+      <div class="stat-value green">320€</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Net</div>
+      <div class="stat-value green">7490€</div>
+    </div>
+  </div>
+
+  <div class="section-title">// Dernières courses</div>
+
+  <div class="course">
+    <div class="course-head">
+      <div class="course-client">M. Bernard</div>
+      <div class="course-amount">140€</div>
+    </div>
+    <div class="course-meta">
+      <span>25.05 / 09:30</span>
+      <span class="badge">E</span>
+      <span>Plaza Athénée → CDG</span>
+    </div>
+  </div>
+
+  <div class="course">
+    <div class="course-head">
+      <div class="course-client">Mme Laurent</div>
+      <div class="course-amount">75€</div>
+    </div>
+    <div class="course-meta">
+      <span>22.05 / 14:00</span>
+      <span class="badge">V</span>
+      <span>Gare de Lyon → Louvre</span>
+    </div>
+  </div>
+
+  <button class="fab">+</button>
+</body>
+</html>

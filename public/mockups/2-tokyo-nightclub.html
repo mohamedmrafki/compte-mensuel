@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover" />
+<title>Maquette 2 — Tokyo Nightclub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  @keyframes pulse-violet {
+    0%,100% { box-shadow: 0 0 20px rgba(155,126,245,0.4), inset 0 0 20px rgba(155,126,245,0.1); }
+    50%     { box-shadow: 0 0 40px rgba(155,126,245,0.7), inset 0 0 30px rgba(155,126,245,0.2); }
+  }
+  @keyframes scan {
+    0% { transform: translateY(-100%); }
+    100% { transform: translateY(100vh); }
+  }
+  body {
+    background:
+      radial-gradient(circle at 80% 20%, rgba(155,126,245,0.2) 0%, transparent 50%),
+      radial-gradient(circle at 20% 80%, rgba(38,196,176,0.15) 0%, transparent 50%),
+      linear-gradient(180deg, #0A0815 0%, #050308 100%);
+    color: #E4DCFF;
+    font-family: 'Space Grotesk', sans-serif;
+    min-height: 100vh;
+    padding: 20px 16px 80px;
+    max-width: 480px;
+    margin: 0 auto;
+    -webkit-font-smoothing: antialiased;
+    position: relative;
+    overflow-x: hidden;
+  }
+  /* Effet scanline subtil */
+  body::after {
+    content: ''; position: fixed; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(155,126,245,0.4), transparent);
+    pointer-events: none; z-index: 1;
+    animation: scan 8s linear infinite;
+  }
+  .back { display: inline-flex; align-items: center; gap: 6px; color: #9B7EF5; text-decoration: none; font-size: 12px; margin-bottom: 18px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; }
+  .title-section { padding-bottom: 18px; margin-bottom: 22px; border-bottom: 1px solid rgba(155,126,245,0.2); }
+  .eyebrow { font-size: 10px; color: #6B5FA5; letter-spacing: 0.3em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px; }
+  .h1 {
+    font-size: 32px; font-weight: 700; letter-spacing: -0.02em; line-height: 1;
+    background: linear-gradient(90deg, #9B7EF5 0%, #26C4B0 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-transform: uppercase;
+  }
+  .month-pill {
+    display: inline-flex; gap: 10px; align-items: center;
+    background: rgba(155,126,245,0.1);
+    border: 1px solid rgba(155,126,245,0.5);
+    padding: 8px 18px; border-radius: 6px; margin-top: 14px;
+    box-shadow: 0 0 24px rgba(155,126,245,0.25), inset 0 0 12px rgba(155,126,245,0.05);
+  }
+  .month-pill .y { font-size: 10px; color: #6B5FA5; letter-spacing: 0.2em; font-weight: 700; }
+  .month-pill .m { font-size: 16px; color: #C9B8FF; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; }
+  .pills { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 24px; padding-bottom: 6px; }
+  .pill {
+    padding: 8px 16px; border-radius: 6px; white-space: nowrap;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(155,126,245,0.15);
+    color: #6B5FA5; font-size: 12px; font-weight: 600;
+    letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .pill.active {
+    background: rgba(155,126,245,0.15);
+    border: 1px solid #9B7EF5;
+    color: #C9B8FF;
+    animation: pulse-violet 2.5s ease-in-out infinite;
+  }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+  .stat {
+    position: relative;
+    background: linear-gradient(160deg, rgba(155,126,245,0.08) 0%, rgba(10,8,21,0.6) 100%);
+    border: 1px solid rgba(155,126,245,0.25);
+    border-radius: 8px;
+    padding: 18px 16px;
+    overflow: hidden;
+  }
+  .stat::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, #9B7EF5, #26C4B0);
+  }
+  .stat.cyan { border-color: rgba(38,196,176,0.3); }
+  .stat.cyan::before { background: linear-gradient(90deg, #26C4B0, #9B7EF5); }
+  .stat-label { font-size: 9px; color: #6B5FA5; text-transform: uppercase; letter-spacing: 0.25em; margin-bottom: 10px; font-weight: 700; }
+  .stat-value {
+    font-size: 30px; font-weight: 700;
+    color: #C9B8FF;
+    letter-spacing: -0.02em;
+    text-shadow: 0 0 24px rgba(155,126,245,0.6);
+  }
+  .stat-value.cyan { color: #6FE5D2; text-shadow: 0 0 24px rgba(38,196,176,0.6); }
+  .stat-value.pink { color: #FF6FB5; text-shadow: 0 0 24px rgba(255,111,181,0.5); }
+  .stat-sub { font-size: 10px; color: #4A4070; margin-top: 4px; letter-spacing: 0.1em; text-transform: uppercase; }
+  .section-title {
+    font-size: 11px; color: #6B5FA5; margin: 28px 0 14px;
+    letter-spacing: 0.3em; text-transform: uppercase; font-weight: 700;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(155,126,245,0.5), transparent); }
+  .course {
+    background: linear-gradient(160deg, rgba(155,126,245,0.06) 0%, rgba(10,8,21,0.5) 100%);
+    border: 1px solid rgba(155,126,245,0.2);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 10px;
+    position: relative;
+  }
+  .course:hover { border-color: rgba(155,126,245,0.5); box-shadow: 0 0 24px rgba(155,126,245,0.2); }
+  .course-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+  .course-client { font-size: 16px; font-weight: 600; color: #E4DCFF; }
+  .course-amount { font-size: 18px; font-weight: 700; color: #C9B8FF; text-shadow: 0 0 16px rgba(155,126,245,0.5); }
+  .course-meta { font-size: 11px; color: #6B5FA5; display: flex; flex-wrap: wrap; gap: 8px; letter-spacing: 0.05em; }
+  .badge {
+    display: inline-block; font-size: 9px; padding: 2px 8px; border-radius: 4px;
+    background: rgba(38,196,176,0.15); color: #26C4B0; letter-spacing: 0.18em;
+    text-transform: uppercase; font-weight: 700;
+    border: 1px solid rgba(38,196,176,0.4);
+  }
+  .fab {
+    position: fixed; bottom: 24px; right: 24px;
+    width: 60px; height: 60px; border-radius: 50%;
+    background: linear-gradient(135deg, #9B7EF5 0%, #26C4B0 100%);
+    border: none; cursor: pointer; font-size: 30px; color: #0A0815; font-weight: 400;
+    box-shadow: 0 12px 32px rgba(155,126,245,0.5), 0 0 60px rgba(38,196,176,0.3);
+    animation: pulse-violet 2.5s ease-in-out infinite;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 2;
+  }
+</style>
+</head>
+<body>
+  <a href="/mockups/" class="back">← Retour aux 4 maquettes</a>
+
+  <div class="title-section">
+    <div class="eyebrow">Faiz Transport · Oumar</div>
+    <div class="h1">Mes Comptes</div>
+    <div class="month-pill"><span class="y">2026</span><span class="m">Mai</span></div>
+  </div>
+
+  <div class="pills">
+    <div class="pill active">Résumé</div>
+    <div class="pill">Courses</div>
+    <div class="pill">Frais</div>
+    <div class="pill">Sociétés</div>
+    <div class="pill">Année</div>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-label">CA brut</div>
+      <div class="stat-value">8 420 €</div>
+      <div class="stat-sub">42 courses</div>
+    </div>
+    <div class="stat cyan">
+      <div class="stat-label">Frais</div>
+      <div class="stat-value pink">1 250 €</div>
+      <div class="stat-sub">8 dépenses</div>
+    </div>
+    <div class="stat cyan">
+      <div class="stat-label">Pourboires</div>
+      <div class="stat-value cyan">320 €</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Net</div>
+      <div class="stat-value cyan">7 490 €</div>
+    </div>
+  </div>
+
+  <div class="section-title">Dernières courses</div>
+
+  <div class="course">
+    <div class="course-head">
+      <div class="course-client">M. Bernard</div>
+      <div class="course-amount">140 €</div>
+    </div>
+    <div class="course-meta">
+      <span>📅 25.05 · 09:30</span>
+      <span class="badge">Classe E</span>
+      <span>Plaza Athénée → CDG</span>
+    </div>
+  </div>
+
+  <div class="course">
+    <div class="course-head">
+      <div class="course-client">Mme Laurent</div>
+      <div class="course-amount">75 €</div>
+    </div>
+    <div class="course-meta">
+      <span>📅 22.05 · 14:00</span>
+      <span class="badge">Classe V</span>
+      <span>Gare de Lyon → Louvre</span>
+    </div>
+  </div>
+
+  <button class="fab">+</button>
+</body>
+</html>

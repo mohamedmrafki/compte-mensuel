@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover" />
+<title>Maquette 1 — Hôtel Particulier</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background:
+      radial-gradient(circle at 20% 10%, rgba(212,168,83,0.08) 0%, transparent 40%),
+      radial-gradient(circle at 80% 60%, rgba(212,168,83,0.05) 0%, transparent 40%),
+      #08070C;
+    /* texture grain subtile */
+    background-image:
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence baseFrequency='0.9' numOctaves='3' /><feColorMatrix values='0 0 0 0 0.2 0 0 0 0 0.18 0 0 0 0 0.13 0 0 0 0.06 0'/></filter><rect width='100%' height='100%' filter='url(%23n)' /></svg>"),
+      radial-gradient(circle at 20% 10%, rgba(212,168,83,0.08) 0%, transparent 40%),
+      radial-gradient(circle at 80% 60%, rgba(212,168,83,0.05) 0%, transparent 40%),
+      #08070C;
+    color: #F2EDE1;
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    padding: 20px 16px 80px;
+    max-width: 480px;
+    margin: 0 auto;
+    -webkit-font-smoothing: antialiased;
+  }
+  .back { display: inline-flex; align-items: center; gap: 6px; color: #C8A45A; text-decoration: none; font-size: 12px; margin-bottom: 18px; letter-spacing: 0.1em; text-transform: uppercase; }
+  .title-section { padding-bottom: 18px; border-bottom: 1px solid rgba(212,168,83,0.18); margin-bottom: 22px; }
+  .eyebrow { font-size: 10px; color: #9A7A3E; letter-spacing: 0.22em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px; }
+  .h1 {
+    font-family: 'Playfair Display', serif;
+    font-weight: 900;
+    font-size: 32px;
+    letter-spacing: -0.01em;
+    line-height: 1;
+    background: linear-gradient(180deg, #F0DAA8 0%, #C8A45A 60%, #9A7A3E 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .month-pill {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: linear-gradient(180deg, rgba(212,168,83,0.12), rgba(212,168,83,0.05));
+    border: 1px solid rgba(212,168,83,0.35);
+    padding: 8px 16px; border-radius: 100px; margin-top: 14px;
+    font-family: 'Playfair Display', serif; font-style: italic;
+    box-shadow: 0 8px 24px rgba(212,168,83,0.1), inset 0 1px 0 rgba(255,235,180,0.15);
+  }
+  .month-pill .y { font-size: 11px; color: #9A7A3E; }
+  .month-pill .m { font-size: 16px; color: #F0DAA8; font-weight: 700; }
+  .pills { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 24px; padding-bottom: 6px; }
+  .pill {
+    padding: 8px 18px; border-radius: 100px; white-space: nowrap;
+    background: rgba(255,255,255,0.02); border: 1px solid rgba(212,168,83,0.12);
+    color: #8B7A5C; font-size: 12px; font-weight: 500; letter-spacing: 0.06em;
+  }
+  .pill.active {
+    background: linear-gradient(180deg, rgba(212,168,83,0.25), rgba(212,168,83,0.08));
+    border: 1px solid rgba(212,168,83,0.55);
+    color: #F0DAA8;
+    box-shadow: 0 0 18px rgba(212,168,83,0.18), inset 0 1px 0 rgba(255,235,180,0.2);
+    font-family: 'Playfair Display', serif; font-style: italic; font-weight: 700;
+  }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+  .stat {
+    position: relative;
+    background: linear-gradient(160deg, rgba(34,28,18,0.6) 0%, rgba(15,12,8,0.4) 100%);
+    border: 1px solid rgba(212,168,83,0.18);
+    border-radius: 18px;
+    padding: 18px 16px;
+    overflow: hidden;
+  }
+  .stat::before {
+    content: ''; position: absolute; inset: 0;
+    border-radius: 18px; padding: 1px;
+    background: linear-gradient(135deg, rgba(212,168,83,0.4), transparent 30%, transparent 70%, rgba(212,168,83,0.2));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    pointer-events: none;
+  }
+  .stat-label { font-size: 10px; color: #9A7A3E; text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 8px; font-weight: 600; }
+  .stat-value { font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 900; color: #F0DAA8; letter-spacing: -0.02em; }
+  .stat-value.red { color: #E8867A; }
+  .stat-value.green { color: #A8E0C1; }
+  .stat-sub { font-size: 11px; color: #6B5F45; margin-top: 4px; font-style: italic; }
+  .section-title {
+    font-family: 'Playfair Display', serif; font-style: italic;
+    font-size: 14px; color: #9A7A3E; margin: 28px 0 14px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(212,168,83,0.4), transparent); }
+  .course {
+    background: linear-gradient(160deg, rgba(34,28,18,0.5) 0%, rgba(15,12,8,0.3) 100%);
+    border: 1px solid rgba(212,168,83,0.15);
+    border-left: 3px solid #C8A45A;
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 10px;
+    position: relative;
+  }
+  .course-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .course-client { font-family: 'Playfair Display', serif; font-size: 17px; font-weight: 700; color: #F2EDE1; }
+  .course-amount { font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 900; color: #F0DAA8; }
+  .course-meta { font-size: 12px; color: #8B7A5C; display: flex; flex-wrap: wrap; gap: 8px; }
+  .course-meta span { display: inline-flex; align-items: center; gap: 4px; }
+  .badge {
+    display: inline-block; font-size: 9px; padding: 2px 8px; border-radius: 100px;
+    background: rgba(212,168,83,0.15); color: #C8A45A; letter-spacing: 0.12em;
+    text-transform: uppercase; font-weight: 600;
+    border: 1px solid rgba(212,168,83,0.25);
+  }
+  .fab {
+    position: fixed; bottom: 24px; right: 24px;
+    width: 60px; height: 60px; border-radius: 50%;
+    background: linear-gradient(135deg, #F0DAA8 0%, #C8A45A 50%, #9A7A3E 100%);
+    border: none; cursor: pointer; font-size: 28px; color: #08070C; font-weight: 300;
+    box-shadow: 0 12px 32px rgba(212,168,83,0.4), inset 0 1px 0 rgba(255,255,255,0.3);
+    display: flex; align-items: center; justify-content: center;
+  }
+</style>
+</head>
+<body>
+  <a href="/mockups/" class="back">← Retour aux 4 maquettes</a>
+
+  <div class="title-section">
+    <div class="eyebrow">Faiz Transport · Oumar</div>
+    <div class="h1">Mes Comptes</div>
+    <div class="month-pill"><span class="y">2026</span><span class="m">Mai</span></div>
+  </div>
+
+  <div class="pills">
+    <div class="pill active">Résumé</div>
+    <div class="pill">Courses</div>
+    <div class="pill">Frais</div>
+    <div class="pill">Sociétés</div>
+    <div class="pill">Année</div>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-label">CA brut</div>
+      <div class="stat-value">8 420 €</div>
+      <div class="stat-sub">42 courses</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Frais</div>
+      <div class="stat-value red">1 250 €</div>
+      <div class="stat-sub">8 dépenses</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Pourboires</div>
+      <div class="stat-value green">320 €</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Net</div>
+      <div class="stat-value green">7 490 €</div>
+    </div>
+  </div>
+
+  <div class="section-title">Dernières courses</div>
+
+  <div class="course">
+    <div class="course-head">
+      <div class="course-client">M. Bernard</div>
+      <div class="course-amount">140 €</div>
+    </div>
+    <div class="course-meta">
+      <span>📅 25 mai · 9h30</span>
+      <span class="badge">Classe E</span>
+      <span>Plaza Athénée → CDG</span>
+    </div>
+  </div>
+
+  <div class="course">
+    <div class="course-head">
+      <div class="course-client">Mme Laurent</div>
+      <div class="course-amount">75 €</div>
+    </div>
+    <div class="course-meta">
+      <span>📅 22 mai · 14h00</span>
+      <span class="badge">Classe V</span>
+      <span>Gare de Lyon → Louvre</span>
+    </div>
+  </div>
+
+  <button class="fab">+</button>
+</body>
+</html>

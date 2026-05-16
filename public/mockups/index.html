@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>4 maquettes — Mes Comptes Chauffeur</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: linear-gradient(135deg, #0A0A12 0%, #15131C 100%);
+    color: #EDF0F7;
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    padding: 40px 20px 60px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 1280px; margin: 0 auto; }
+  .header { text-align: center; margin-bottom: 48px; }
+  .h1 {
+    font-size: clamp(28px, 4vw, 44px); font-weight: 800;
+    background: linear-gradient(90deg, #D4A853 0%, #F0C870 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    margin-bottom: 12px; letter-spacing: -0.02em;
+  }
+  .sub { color: #8A92A8; font-size: 15px; max-width: 600px; margin: 0 auto; line-height: 1.5; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 22px;
+    margin-bottom: 40px;
+  }
+  .card {
+    background: linear-gradient(160deg, #1A1A24 0%, #0F0E16 100%);
+    border: 1px solid #2A2A3A;
+    border-radius: 18px;
+    overflow: hidden;
+    transition: all 0.25s cubic-bezier(.16,1,.3,1);
+    text-decoration: none; color: inherit;
+    position: relative;
+  }
+  .card:hover { transform: translateY(-4px); border-color: #4A4A6A; box-shadow: 0 20px 40px rgba(0,0,0,0.4); }
+  .preview {
+    aspect-ratio: 9/16;
+    width: 100%;
+    border: none;
+    pointer-events: none;
+    background: #0A0A0A;
+  }
+  .body { padding: 20px; }
+  .num {
+    display: inline-block;
+    font-size: 11px; font-weight: 800; letter-spacing: 0.2em;
+    padding: 4px 10px; border-radius: 100px;
+    background: rgba(212,168,83,0.15); color: #D4A853;
+    margin-bottom: 10px;
+  }
+  .title { font-size: 19px; font-weight: 700; margin-bottom: 6px; color: #FFFFFF; }
+  .desc { font-size: 13px; color: #9CA3B8; line-height: 1.5; min-height: 60px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+  .tag {
+    font-size: 10px; padding: 3px 9px; border-radius: 100px;
+    background: rgba(255,255,255,0.04); color: #B8C0D0;
+    border: 1px solid rgba(255,255,255,0.06);
+    letter-spacing: 0.06em;
+  }
+  .cta {
+    margin-top: 16px; padding: 10px 14px;
+    background: rgba(212,168,83,0.12); border: 1px solid rgba(212,168,83,0.3);
+    border-radius: 10px; color: #F0C870; font-size: 13px; font-weight: 600;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .vote {
+    text-align: center; padding: 28px 24px;
+    background: rgba(212,168,83,0.06);
+    border: 1px solid rgba(212,168,83,0.25);
+    border-radius: 18px;
+    max-width: 600px; margin: 0 auto;
+  }
+  .vote h2 { font-size: 20px; font-weight: 700; color: #F0C870; margin-bottom: 10px; }
+  .vote p { color: #B8C0D0; font-size: 14px; line-height: 1.6; }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="h1">4 directions visuelles</div>
+      <p class="sub">Clique sur une maquette pour la voir en grand. Chacune montre exactement le même contenu (CA mai 2026, 2 courses) — seul le style change.</p>
+    </div>
+
+    <div class="grid">
+      <a href="/mockups/1-hotel-particulier.html" class="card">
+        <iframe class="preview" src="/mockups/1-hotel-particulier.html" loading="lazy" sandbox="allow-same-origin"></iframe>
+        <div class="body">
+          <span class="num">01</span>
+          <div class="title">Hôtel Particulier</div>
+          <p class="desc">Évolution raffinée de l'actuel. Or brossé, typographie Playfair Display, grain de papier subtil. Le palace parisien après rénovation.</p>
+          <div class="meta">
+            <span class="tag">Or & noir</span>
+            <span class="tag">Sérif</span>
+            <span class="tag">Premium classique</span>
+          </div>
+          <div class="cta">Voir en grand <span>→</span></div>
+        </div>
+      </a>
+
+      <a href="/mockups/2-tokyo-nightclub.html" class="card">
+        <iframe class="preview" src="/mockups/2-tokyo-nightclub.html" loading="lazy" sandbox="allow-same-origin"></iframe>
+        <div class="body">
+          <span class="num">02</span>
+          <div class="title">Tokyo Nightclub</div>
+          <p class="desc">Cyberpunk discret, néons violet + cyan, vibe Tesla. Space Grotesk, animations pulse, scanline subtil.</p>
+          <div class="meta">
+            <span class="tag">Violet & cyan</span>
+            <span class="tag">Futuriste</span>
+            <span class="tag">Moderne tech</span>
+          </div>
+          <div class="cta">Voir en grand <span>→</span></div>
+        </div>
+      </a>
+
+      <a href="/mockups/3-marble-lobby.html" class="card">
+        <iframe class="preview" src="/mockups/3-marble-lobby.html" loading="lazy" sandbox="allow-same-origin"></iframe>
+        <div class="body">
+          <span class="num">03</span>
+          <div class="title">Marble Lobby</div>
+          <p class="desc">Mode clair, crème et or chaud, typographie Cormorant Garamond. Reposant pour les yeux en plein jour. Plus pro pour montrer à un comptable.</p>
+          <div class="meta">
+            <span class="tag">Clair</span>
+            <span class="tag">Crème & or</span>
+            <span class="tag">Pro / élégant</span>
+          </div>
+          <div class="cta">Voir en grand <span>→</span></div>
+        </div>
+      </a>
+
+      <a href="/mockups/4-pure-racing.html" class="card">
+        <iframe class="preview" src="/mockups/4-pure-racing.html" loading="lazy" sandbox="allow-same-origin"></iframe>
+        <div class="body">
+          <span class="num">04</span>
+          <div class="title">Pure Racing</div>
+          <p class="desc">Inspiré tableaux de bord AMG/Bentley. Vert racing, JetBrains Mono pour les chiffres, lignes nettes, zéro fioriture.</p>
+          <div class="meta">
+            <span class="tag">Vert racing</span>
+            <span class="tag">Mono</span>
+            <span class="tag">Outil pro</span>
+          </div>
+          <div class="cta">Voir en grand <span>→</span></div>
+        </div>
+      </a>
+    </div>
+
+    <div class="vote">
+      <h2>👉 Une fois choisie</h2>
+      <p>Dis-moi simplement <strong>"je veux la 1"</strong> (ou 2, 3, 4) et je transforme ton app en cette direction.<br>Tu peux aussi me dire <strong>"fais un mix de 1 et 4"</strong> ou <strong>"je veux les 4 thèmes interchangeables"</strong>.</p>
+    </div>
+  </div>
+</body>
+</html>

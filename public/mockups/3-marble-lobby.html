@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover" />
+<title>Maquette 3 — Marble Lobby (clair)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background:
+      radial-gradient(circle at 20% 0%, rgba(168,126,46,0.06) 0%, transparent 40%),
+      linear-gradient(180deg, #FAF7EE 0%, #F2EDDE 100%);
+    color: #2A2419;
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    padding: 20px 16px 80px;
+    max-width: 480px;
+    margin: 0 auto;
+    -webkit-font-smoothing: antialiased;
+  }
+  .back { display: inline-flex; align-items: center; gap: 6px; color: #A87E2E; text-decoration: none; font-size: 12px; margin-bottom: 18px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; }
+  .title-section { padding-bottom: 22px; border-bottom: 1px solid rgba(168,126,46,0.18); margin-bottom: 24px; }
+  .eyebrow { font-size: 10px; color: #A87E2E; letter-spacing: 0.28em; text-transform: uppercase; font-weight: 700; margin-bottom: 8px; }
+  .h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 900; font-size: 38px;
+    letter-spacing: -0.02em; line-height: 1;
+    color: #1A1505;
+  }
+  .h1 em { color: #A87E2E; font-style: italic; }
+  .month-pill {
+    display: inline-flex; gap: 10px; align-items: baseline;
+    background: #FFFFFF; border: 1px solid rgba(168,126,46,0.25);
+    padding: 9px 18px; border-radius: 100px; margin-top: 16px;
+    box-shadow: 0 1px 3px rgba(168,126,46,0.06), 0 6px 20px rgba(168,126,46,0.05);
+  }
+  .month-pill .y { font-size: 11px; color: #A87E2E; }
+  .month-pill .m { font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: 17px; color: #1A1505; font-weight: 700; }
+  .pills { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 26px; padding-bottom: 6px; }
+  .pill {
+    padding: 9px 18px; border-radius: 100px; white-space: nowrap;
+    background: transparent;
+    border: 1px solid rgba(168,126,46,0.18);
+    color: #8C7A50; font-size: 13px; font-weight: 500;
+  }
+  .pill.active {
+    background: #1A1505;
+    border: 1px solid #1A1505;
+    color: #FAF7EE;
+    font-family: 'Cormorant Garamond', serif; font-style: italic; font-weight: 700;
+    font-size: 14px;
+  }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+  .stat {
+    background: #FFFFFF;
+    border: 1px solid rgba(168,126,46,0.12);
+    border-radius: 16px;
+    padding: 20px 18px;
+    box-shadow: 0 1px 2px rgba(26,21,5,0.04), 0 8px 28px rgba(168,126,46,0.04);
+  }
+  .stat-label { font-size: 10px; color: #A87E2E; text-transform: uppercase; letter-spacing: 0.22em; margin-bottom: 10px; font-weight: 700; }
+  .stat-value { font-family: 'Cormorant Garamond', serif; font-size: 32px; font-weight: 900; color: #1A1505; letter-spacing: -0.02em; line-height: 1; }
+  .stat-value.red { color: #B5392E; }
+  .stat-value.green { color: #1A7A4A; }
+  .stat-sub { font-size: 11px; color: #8C7A50; margin-top: 6px; font-style: italic; }
+  .section-title {
+    font-family: 'Cormorant Garamond', serif; font-style: italic;
+    font-size: 17px; color: #1A1505; margin: 30px 0 14px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(168,126,46,0.4), transparent); }
+  .course {
+    background: #FFFFFF;
+    border: 1px solid rgba(168,126,46,0.12);
+    border-left: 3px solid #A87E2E;
+    border-radius: 14px;
+    padding: 18px;
+    margin-bottom: 10px;
+    box-shadow: 0 1px 2px rgba(26,21,5,0.04), 0 4px 16px rgba(168,126,46,0.03);
+  }
+  .course-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .course-client { font-family: 'Cormorant Garamond', serif; font-size: 19px; font-weight: 700; color: #1A1505; }
+  .course-amount { font-family: 'Cormorant Garamond', serif; font-size: 20px; font-weight: 900; color: #A87E2E; }
+  .course-meta { font-size: 12px; color: #8C7A50; display: flex; flex-wrap: wrap; gap: 8px; }
+  .badge {
+    display: inline-block; font-size: 9px; padding: 3px 9px; border-radius: 100px;
+    background: rgba(168,126,46,0.1); color: #A87E2E; letter-spacing: 0.14em;
+    text-transform: uppercase; font-weight: 700;
+  }
+  .fab {
+    position: fixed; bottom: 24px; right: 24px;
+    width: 60px; height: 60px; border-radius: 50%;
+    background: #1A1505;
+    border: none; cursor: pointer; font-size: 30px; color: #FAF7EE; font-weight: 300;
+    box-shadow: 0 8px 24px rgba(26,21,5,0.25), 0 16px 40px rgba(168,126,46,0.2);
+    display: flex; align-items: center; justify-content: center;
+  }
+</style>
+</head>
+<body>
+  <a href="/mockups/" class="back">← Retour aux 4 maquettes</a>
+
+  <div class="title-section">
+    <div class="eyebrow">Faiz Transport · Oumar</div>
+    <div class="h1">Mes <em>Comptes</em></div>
+    <div class="month-pill"><span class="y">2026 ·</span><span class="m">Mai</span></div>
+  </div>
+
+  <div class="pills">
+    <div class="pill active">Résumé</div>
+    <div class="pill">Courses</div>
+    <div class="pill">Frais</div>
+    <div class="pill">Sociétés</div>
+    <div class="pill">Année</div>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-label">CA brut</div>
+      <div class="stat-value">8 420 €</div>
+      <div class="stat-sub">42 courses</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Frais</div>
+      <div class="stat-value red">1 250 €</div>
+      <div class="stat-sub">8 dépenses</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Pourboires</div>
+      <div class="stat-value green">320 €</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Net</div>
+      <div class="stat-value green">7 490 €</div>
+    </div>
+  </div>
+
+  <div class="section-title">Dernières courses</div>
+
+  <div class="course">
+    <div class="course-head">
+      <div class="course-client">M. Bernard</div>
+      <div class="course-amount">140 €</div>
+    </div>
+    <div class="course-meta">
+      <span>📅 25 mai · 9h30</span>
+      <span class="badge">Classe E</span>
+      <span>Plaza Athénée → CDG</span>
+    </div>
+  </div>
+
+  <div class="course">
+    <div class="course-head">
+      <div class="course-client">Mme Laurent</div>
+      <div class="course-amount">75 €</div>
+    </div>
+    <div class="course-meta">
+      <span>📅 22 mai · 14h00</span>
+      <span class="badge">Classe V</span>
+      <span>Gare de Lyon → Louvre</span>
+    </div>
+  </div>
+
+  <button class="fab">+</button>
+</body>
+</html>
