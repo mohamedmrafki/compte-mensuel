@@ -30,10 +30,10 @@ const DEMO_CHAUFFEURS = [
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 const C = {
-  bg: "#08070C", surface: "#15110A", card: "#1C1812", border: "#2A2218", border2: "#3A2F20",
-  gold: "#C8A45A", goldBright: "#F0DAA8", goldDim: "#9A7A3E", goldGlow: "rgba(212,168,83,0.10)",
+  bg: "#0A0A0E", surface: "#13131A", card: "#191921", border: "#252530", border2: "#33333F",
+  gold: "#C8A45A", goldBright: "#F0DAA8", goldDim: "#9A7A3E", goldGlow: "rgba(212,168,83,0.08)",
   green: "#A8E0C1", red: "#E8867A", blue: "#7DA8E8", purple: "#B299F0", orange: "#F0B070", teal: "#7AD9C5",
-  text: "#F2EDE1", muted: "#8B7A5C", white: "#FFFFFF",
+  text: "#F2EDE1", muted: "#7A7A8A", white: "#FFFFFF",
 };
 const FONT = { display: "'Playfair Display', serif", body: "'Inter', sans-serif" };
 
@@ -1694,7 +1694,7 @@ export default function App() {
           <div>
             <div style={{ fontSize: 10, color: C.goldDim, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 2 }}>Course Privée</div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ fontFamily: FONT.display, fontSize: 30, fontWeight: 900, color: C.text, letterSpacing: "-0.01em", lineHeight: 1, background: `linear-gradient(180deg, ${C.goldBright} 0%, ${C.gold} 60%, ${C.goldDim} 100%)`, WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent" }}>Mes Comptes</div>
+              <div style={{ fontFamily: FONT.display, fontSize: 30, fontWeight: 900, color: C.text, letterSpacing: "-0.01em", lineHeight: 1 }}>Mes <span style={{ fontStyle: "italic", fontWeight: 700, color: C.gold }}>Comptes</span></div>
               {defaultChauffeur && <button onClick={() => setShowChauffeurSettings(true)} style={{ background: C.goldGlow, border: `1px solid ${C.gold}40`, borderRadius: 20, padding: "3px 10px", fontSize: 12, color: C.gold, fontWeight: 600, cursor: "pointer", transition: "all 0.18s" }}>🧑‍✈️ {defaultChauffeur}</button>}
             </div>
             <button onClick={() => { localStorage.removeItem("cp_profile"); setProfile(null); }} style={{ background: `${profileInfo?.color || C.blue}12`, border: `1px solid ${profileInfo?.color || C.blue}35`, borderRadius: 20, padding: "2px 10px", fontSize: 11, color: profileInfo?.color || C.blue, fontWeight: 600, cursor: "pointer", marginTop: 5 }}>
