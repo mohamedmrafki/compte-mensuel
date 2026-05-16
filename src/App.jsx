@@ -252,37 +252,24 @@ function ensureGeolocation() {
 const GOOGLE_PLACES_KEY = import.meta.env.VITE_GOOGLE_PLACES_API_KEY;
 
 async function searchGooglePlaces(query) {
-  if (!GOOGLE_PLACES_KEY) { console.log("[Places] No API key"); return null; }
+  if (!GOOGLE_PLACES_KEY) return null;
   const { lat, lon } = geoRef;
-  console.log("[Places] Calling Google with key:", GOOGLE_PLACES_KEY.slice(0, 10) + "...", "query:", query, "geo:", lat, lon);
-  let res;
-  try {
-    res = await fetch("https://places.googleapis.com/v1/places:autocomplete", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": GOOGLE_PLACES_KEY,
-        "X-Goog-FieldMask": "suggestions.placePrediction.text,suggestions.placePrediction.structuredFormat,suggestions.placePrediction.types",
-      },
-      body: JSON.stringify({
-        input: query,
-        languageCode: "fr",
-        regionCode: "fr",
-        locationBias: { circle: { center: { latitude: lat, longitude: lon }, radius: 50000 } },
-      }),
-    });
-  } catch (e) {
-    console.error("[Places] Fetch error:", e);
-    return null;
-  }
-  console.log("[Places] Response status:", res.status);
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "");
-    console.error("[Places] API error body:", errText);
-    return null;
-  }
+  const res = await fetch("https://places.googleapis.com/v1/places:autocomplete", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": GOOGLE_PLACES_KEY,
+      "X-Goog-FieldMask": "suggestions.placePrediction.text,suggestions.placePrediction.structuredFormat,suggestions.placePrediction.types",
+    },
+    body: JSON.stringify({
+      input: query,
+      languageCode: "fr",
+      regionCode: "fr",
+      locationBias: { circle: { center: { latitude: lat, longitude: lon }, radius: 50000 } },
+    }),
+  });
+  if (!res.ok) return null;
   const data = await res.json();
-  console.log("[Places] Got", data.suggestions?.length || 0, "suggestions");
   return (data.suggestions || [])
     .map(s => s.placePrediction)
     .filter(Boolean)
