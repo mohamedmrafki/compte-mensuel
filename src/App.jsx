@@ -238,57 +238,78 @@ function ACInput({ label, value, onChange, suggestions, placeholder, icon = "�
   );
 }
 
-// Géolocalisation partagée (lat/lon Paris par défaut)
-const geoRef = { lat: 48.8566, lon: 2.3522 };
-if (navigator.geolocation) {
+// Géolocalisation paresseuse : ne déclenche le prompt qu'au 1er focus d'un AddressInput
+const geoRef = { lat: 48.8566, lon: 2.3522, asked: false };
+function ensureGeolocation() {
+  if (geoRef.asked || !navigator.geolocation) return;
+  geoRef.asked = true;
   navigator.geolocation.getCurrentPosition(
     p => { geoRef.lat = p.coords.latitude; geoRef.lon = p.coords.longitude; },
     () => {}
   );
 }
 
-function formatNominatim(r) {
-  const name = r.name || r.display_name.split(",")[0].trim();
-  const a = r.address || {};
-  const road = [a.house_number, a.road].filter(Boolean).join(" ");
-  const city = [a.postcode, a.city || a.town || a.village || a.municipality].filter(Boolean).join(" ");
-  const addrLine = [road, city].filter(Boolean).join(", ") || r.display_name.split(",").slice(1, 3).join(",").trim();
-  const isNamed = name && !road.startsWith(name);
-  return { name: isNamed ? name : null, addr: addrLine, label: isNamed ? (addrLine ? `${name}, ${addrLine}` : name) : addrLine };
+const GOOGLE_PLACES_KEY = import.meta.env.VITE_GOOGLE_PLACES_API_KEY;
+
+async function searchGooglePlaces(query) {
+  if (!GOOGLE_PLACES_KEY) return null;
+  const { lat, lon } = geoRef;
+  const res = await fetch("https://places.googleapis.com/v1/places:autocomplete", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": GOOGLE_PLACES_KEY,
+      "X-Goog-FieldMask": "suggestions.placePrediction.text,suggestions.placePrediction.structuredFormat,suggestions.placePrediction.types",
+    },
+    body: JSON.stringify({
+      input: query,
+      languageCode: "fr",
+      regionCode: "fr",
+      locationBias: { circle: { center: { latitude: lat, longitude: lon }, radius: 50000 } },
+    }),
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return (data.suggestions || [])
+    .map(s => s.placePrediction)
+    .filter(Boolean)
+    .map(p => {
+      const main = p.structuredFormat?.mainText?.text || p.text?.text || "";
+      const secondary = p.structuredFormat?.secondaryText?.text || "";
+      const types = p.types || [];
+      const isAddress = types.includes("street_address") || types.includes("premise") || types.includes("route");
+      return isAddress
+        ? { name: null, addr: p.text?.text || main, label: p.text?.text || main, types }
+        : { name: main, addr: secondary, label: secondary ? `${main}, ${secondary}` : main, types };
+    });
+}
+
+async function searchBAN(query) {
+  const { lat, lon } = geoRef;
+  const res = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(query)}&limit=6&lat=${lat}&lon=${lon}`);
+  if (!res.ok) return [];
+  const data = await res.json();
+  return (data.features || []).map(f => ({ name: null, addr: f.properties.label, label: f.properties.label, types: [] }));
 }
 
 async function searchPlaces(query) {
-  const q = encodeURIComponent(query);
-  const { lat, lon } = geoRef;
-  const [nomRes, banRes] = await Promise.allSettled([
-    fetch(
-      `https://nominatim.openstreetmap.org/search?q=${q}&format=json&addressdetails=1&limit=6` +
-      `&viewbox=${lon - 0.4},${lat + 0.3},${lon + 0.4},${lat - 0.3}&bounded=0&accept-language=fr`,
-      { headers: { "Accept-Language": "fr" } }
-    ).then(r => r.json()),
-    fetch(`https://api-adresse.data.gouv.fr/search/?q=${q}&limit=4&lat=${lat}&lon=${lon}`).then(r => r.json()),
-  ]);
-  const results = [];
-  const seen = new Set();
-  if (nomRes.status === "fulfilled") {
-    for (const r of (nomRes.value || [])) {
-      const item = formatNominatim(r);
-      if (!item.label) continue;
-      const key = item.label.toLowerCase().slice(0, 40);
-      if (!seen.has(key)) { seen.add(key); results.push(item); }
-    }
-  }
-  if (banRes.status === "fulfilled") {
-    for (const f of (banRes.value.features || [])) {
-      const label = f.properties.label;
-      const key = label.toLowerCase().slice(0, 40);
-      if (!seen.has(key)) { seen.add(key); results.push({ name: null, addr: label, label }); }
-    }
-  }
-  return results.slice(0, 7);
+  const google = await searchGooglePlaces(query).catch(() => null);
+  if (google && google.length > 0) return google.slice(0, 7);
+  const ban = await searchBAN(query).catch(() => []);
+  return ban.slice(0, 7);
 }
 
 function poiIcon(item) {
+  const types = item.types || [];
+  if (types.includes("airport")) return "✈️";
+  if (types.includes("train_station") || types.includes("transit_station") || types.includes("subway_station")) return "🚉";
+  if (types.includes("lodging")) return "🏨";
+  if (types.includes("museum") || types.includes("art_gallery") || types.includes("tourist_attraction")) return "🏛";
+  if (types.includes("hospital") || types.includes("doctor")) return "🏥";
+  if (types.includes("restaurant") || types.includes("cafe") || types.includes("bar") || types.includes("food")) return "🍽";
+  if (types.includes("park")) return "🌳";
+  if (types.includes("stadium")) return "🏟";
+  if (types.includes("shopping_mall") || types.includes("store")) return "🛍";
   if (!item.name) return "📍";
   const n = item.name.toLowerCase();
   if (n.includes("hôtel") || n.includes("hotel")) return "🏨";
@@ -334,7 +355,7 @@ function AddressInput({ label, value, onChange, placeholder }) {
     <div ref={ref} style={{ position: "relative", display: "flex", flexDirection: "column", gap: 4 }}>
       {label && <Lbl>{label}</Lbl>}
       <div style={{ position: "relative" }}>
-        <input value={value || ""} onChange={e => handleChange(e.target.value)} onFocus={() => value && value.length >= 3 && setOpen(suggestions.length > 0)} placeholder={placeholder || "Hôtel, adresse, gare, musée…"} style={{ ...iBase, paddingRight: 36 }} />
+        <input value={value || ""} onChange={e => handleChange(e.target.value)} onFocus={() => { ensureGeolocation(); if (value && value.length >= 3) setOpen(suggestions.length > 0); }} placeholder={placeholder || "Hôtel, adresse, gare, musée…"} style={{ ...iBase, paddingRight: 36 }} />
         <div style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 14, pointerEvents: "none", opacity: 0.6 }}>{loading ? "⏳" : "🔍"}</div>
       </div>
       {open && suggestions.length > 0 && (
