@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo, memo } from "react";
 import { supabase } from "./supabase.js";
 
 // ── Mode démonstration ────────────────────────────────────────────────────────
@@ -134,16 +134,16 @@ function recurringFromDb(r) {
 }
 
 // ── Composants UI (identiques à l'original) ───────────────────────────────────
-const Pill = ({ label, active, onClick }) => (
+const Pill = memo(({ label, active, onClick }) => (
   <button onClick={onClick} style={{ padding: "6px 16px", borderRadius: 20, border: active ? `1px solid ${C.gold}55` : `1px solid transparent`, cursor: "pointer", fontSize: active ? 12 : 13, fontWeight: 600, background: active ? C.goldGlow : C.surface, color: active ? C.gold : C.muted, whiteSpace: "nowrap", transition: "all 0.18s ease", boxShadow: active ? `0 0 14px ${C.gold}20` : "none", fontFamily: active ? FONT.display : FONT.body, letterSpacing: active ? "0.08em" : "normal", textTransform: active ? "uppercase" : "none" }}>{label}</button>
-);
-const Card = ({ children, style }) => (
+));
+const Card = memo(({ children, style }) => (
   <div style={{ background: `linear-gradient(145deg,${C.card} 0%,rgba(14,16,26,0.95) 100%)`, border: `1px solid ${C.border}`, borderRadius: 16, padding: 16, transition: "border-color 0.2s,box-shadow 0.2s,transform 0.2s", ...style }}
     onMouseEnter={e => { e.currentTarget.style.borderColor = style?.borderColor || C.border2; e.currentTarget.style.boxShadow = "0 6px 28px rgba(0,0,0,0.35)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
     onMouseLeave={e => { e.currentTarget.style.borderColor = style?.borderColor || C.border; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.transform = "translateY(0)"; }}
   >{children}</div>
-);
-const Stat = ({ label, value, color = C.text, sub }) => (
+));
+const Stat = memo(({ label, value, color = C.text, sub }) => (
   <div style={{ flex: 1, minWidth: 0, background: `linear-gradient(145deg,${C.card},rgba(14,16,26,0.95))`, border: `1px solid ${C.border}`, borderLeft: `3px solid ${color}`, borderRadius: 16, padding: 16, transition: "box-shadow 0.2s,transform 0.2s" }}
     onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 6px 28px rgba(0,0,0,0.35)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
     onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.transform = "translateY(0)"; }}>
@@ -151,12 +151,12 @@ const Stat = ({ label, value, color = C.text, sub }) => (
     <div style={{ fontSize: 20, fontWeight: 700, color, fontFamily: FONT.display, letterSpacing: "0.02em" }}>{value}</div>
     {sub && <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>{sub}</div>}
   </div>
-);
-const Lbl = ({ children }) => <label style={{ fontSize: 12, color: C.muted, fontWeight: 600, letterSpacing: "0.04em" }}>{children}</label>;
+));
+const Lbl = memo(({ children }) => <label style={{ fontSize: 12, color: C.muted, fontWeight: 600, letterSpacing: "0.04em" }}>{children}</label>);
 const iBase = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, padding: "9px 13px", fontSize: 14, outline: "none", width: "100%", boxSizing: "border-box", transition: "border-color 0.18s", fontFamily: FONT.body };
-const Input = ({ label, ...p }) => (<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{label && <Lbl>{label}</Lbl>}<input {...p} style={{ ...iBase, ...p.style }} onFocus={e => e.currentTarget.style.borderColor = C.gold} onBlur={e => e.currentTarget.style.borderColor = C.border} /></div>);
-const Textarea = ({ label, ...p }) => (<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{label && <Lbl>{label}</Lbl>}<textarea {...p} style={{ ...iBase, resize: "vertical", minHeight: 60, ...p.style }} onFocus={e => e.currentTarget.style.borderColor = C.gold} onBlur={e => e.currentTarget.style.borderColor = C.border} /></div>);
-const Btn = ({ children, onClick, variant = "primary", style, small }) => {
+const Input = memo(({ label, ...p }) => (<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{label && <Lbl>{label}</Lbl>}<input {...p} style={{ ...iBase, ...p.style }} onFocus={e => e.currentTarget.style.borderColor = C.gold} onBlur={e => e.currentTarget.style.borderColor = C.border} /></div>));
+const Textarea = memo(({ label, ...p }) => (<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{label && <Lbl>{label}</Lbl>}<textarea {...p} style={{ ...iBase, resize: "vertical", minHeight: 60, ...p.style }} onFocus={e => e.currentTarget.style.borderColor = C.gold} onBlur={e => e.currentTarget.style.borderColor = C.border} /></div>));
+const Btn = memo(({ children, onClick, variant = "primary", style, small }) => {
   const isPrimary = variant === "primary";
   const bg = isPrimary ? `linear-gradient(135deg,${C.gold} 0%,${C.goldBright} 100%)` : variant === "danger" ? C.red : C.surface;
   const col = variant === "ghost" ? C.muted : C.bg;
@@ -167,7 +167,7 @@ const Btn = ({ children, onClick, variant = "primary", style, small }) => {
     onMouseDown={e => e.currentTarget.style.transform = "scale(0.97)"}
     onMouseUp={e => e.currentTarget.style.transform = "translateY(-1px)"}
   >{children}</button>;
-};
+});
 
 function VoiceNoteBtn({ onText }) {
   const [listening, setListening] = useState(false);
@@ -1364,36 +1364,58 @@ export default function App() {
   const mc = courses;
   const mf = frais;
 
-  const totalCA = mc.reduce((s, c) => s + Number(c.total || 0), 0);
-  const totalCC = mc.reduce((s, c) => s + Number(c.chauffeurCost || 0), 0);
+  const todayStr = today();
+
+  const monthStats = useMemo(() => {
+    let totalCA = 0, totalCC = 0, totalTips = 0, todayCA = 0, todayCount = 0, privateCA = 0;
+    const byCompany = {};
+    const byVehicle = {};
+    const byChauffeur = {};
+    const driversSet = new Set();
+    for (const c of mc) {
+      const total = Number(c.total || 0);
+      const cost = Number(c.chauffeurCost || 0);
+      totalCA += total;
+      totalCC += cost;
+      totalTips += Number(c.tips || 0);
+      if (c.date === todayStr) { todayCA += total; todayCount++; }
+      if (c.isPrivate) privateCA += total;
+      if (c.company && !c.isPrivate) {
+        if (!byCompany[c.company]) byCompany[c.company] = { amount: 0, trips: [] };
+        byCompany[c.company].amount += total;
+        byCompany[c.company].trips.push(c);
+      }
+      const v = c.vehicule || "N/A";
+      if (!byVehicle[v]) byVehicle[v] = { trips: 0, ca: 0 };
+      byVehicle[v].trips++;
+      byVehicle[v].ca += total;
+      if (c.chauffeur && c.chauffeur !== defaultChauffeur && cost > 0) {
+        if (!byChauffeur[c.chauffeur]) byChauffeur[c.chauffeur] = { trips: [], cost: 0, ca: 0 };
+        byChauffeur[c.chauffeur].trips.push(c);
+        byChauffeur[c.chauffeur].cost += cost;
+        byChauffeur[c.chauffeur].ca += total;
+      }
+      driversSet.add(c.chauffeur || defaultChauffeur);
+    }
+    driversSet.delete(undefined); driversSet.delete(null); driversSet.delete("");
+    return { totalCA, totalCC, totalTips, todayCA, todayCount, privateCA, byCompany, byVehicle, byChauffeur, uniqueDriversInMonth: [...driversSet] };
+  }, [mc, defaultChauffeur, todayStr]);
+
+  const { totalCA, totalCC, totalTips, todayCA, todayCount, privateCA, byCompany, byVehicle, byChauffeur, uniqueDriversInMonth } = monthStats;
+  const totalFrais = useMemo(() => mf.reduce((s, f) => s + Number(f.amount || 0), 0), [mf]);
   const totalMargeCommission = profile === "commission" ? totalCA - totalCC : commissionCA;
   const commissionShare = totalMargeCommission / 2;
   const totalCAAvecCommission = profile !== "commission" ? totalCA + commissionShare : totalCA;
-  const totalTips = mc.reduce((s, c) => s + Number(c.tips || 0), 0);
-  const totalFrais = mf.reduce((s, f) => s + Number(f.amount || 0), 0);
   const net = totalCA - totalFrais - totalCC;
-  const byCompany = {};
-  mc.filter(c => c.company && !c.isPrivate).forEach(c => { if (!byCompany[c.company]) byCompany[c.company] = { amount: 0, trips: [] }; byCompany[c.company].amount += Number(c.total || 0); byCompany[c.company].trips.push(c); });
-  const privateCA = mc.filter(c => c.isPrivate).reduce((s, c) => s + Number(c.total || 0), 0);
-  const byVehicle = {};
-  mc.forEach(c => { const v = c.vehicule || "N/A"; if (!byVehicle[v]) byVehicle[v] = { trips: 0, ca: 0 }; byVehicle[v].trips++; byVehicle[v].ca += Number(c.total || 0); });
-  const todayStr = today();
-  const todayCA = mc.filter(c => c.date === todayStr).reduce((s, c) => s + Number(c.total || 0), 0);
-  const todayCount = mc.filter(c => c.date === todayStr).length;
-  const uniqueDriversInMonth = [...new Set(mc.map(c => c.chauffeur || defaultChauffeur).filter(Boolean))];
-  const filteredCourses = mc.filter(c => {
+
+  const filteredCourses = useMemo(() => {
     const q = searchQuery.toLowerCase();
-    const matchSearch = !q || (c.client || "").toLowerCase().includes(q) || (c.company || "").toLowerCase().includes(q) || new Date(c.date).toLocaleDateString("fr-FR").includes(q);
-    const matchDriver = !filterChauffeur || (filterChauffeur === (c.chauffeur || defaultChauffeur));
-    return matchSearch && matchDriver;
-  });
-  const byChauffeur = {};
-  mc.filter(c => c.chauffeur && c.chauffeur !== defaultChauffeur && Number(c.chauffeurCost) > 0).forEach(c => {
-    if (!byChauffeur[c.chauffeur]) byChauffeur[c.chauffeur] = { trips: [], cost: 0, ca: 0 };
-    byChauffeur[c.chauffeur].trips.push(c);
-    byChauffeur[c.chauffeur].cost += Number(c.chauffeurCost || 0);
-    byChauffeur[c.chauffeur].ca += Number(c.total || 0);
-  });
+    return mc.filter(c => {
+      const matchSearch = !q || (c.client || "").toLowerCase().includes(q) || (c.company || "").toLowerCase().includes(q) || new Date(c.date).toLocaleDateString("fr-FR").includes(q);
+      const matchDriver = !filterChauffeur || (filterChauffeur === (c.chauffeur || defaultChauffeur));
+      return matchSearch && matchDriver;
+    });
+  }, [mc, searchQuery, filterChauffeur, defaultChauffeur]);
 
   // ── Handlers Courses ────────────────────────────────────────────────────────
   const saveCourse = async (c) => {
