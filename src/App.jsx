@@ -1291,6 +1291,154 @@ function GlobalSearchModal({ profile, onNavigate, onClose }) {
   );
 }
 
+// ── Modal Rattrapage km pour anciennes courses ────────────────────────────────
+function KmBackfillModal({ year, profile, onClose, onDone }) {
+  const [phase, setPhase] = useState("init"); // init | counting | ready | running | done | error
+  const [total, setTotal] = useState(0);
+  const [done, setDone] = useState(0);
+  const [errors, setErrors] = useState(0);
+  const [errMsg, setErrMsg] = useState("");
+  const abortRef = useRef(false);
+
+  // Compter les courses à traiter au montage
+  useEffect(() => {
+    (async () => {
+      setPhase("counting");
+      const { data, error } = await supabase
+        .from("courses")
+        .select("id", { count: "exact" })
+        .eq("profile", profile)
+        .eq("prestation", "transfert")
+        .like("month_key", `${year}-%`)
+        .is("distance_km", null)
+        .not("prise", "is", null)
+        .not("depose", "is", null);
+      if (error) { setErrMsg(error.message); setPhase("error"); return; }
+      setTotal(data?.length || 0);
+      setPhase("ready");
+    })();
+  }, [year, profile]);
+
+  const start = async () => {
+    setPhase("running");
+    abortRef.current = false;
+    setDone(0);
+    setErrors(0);
+    // Charger toutes les courses concernées
+    const { data: rows } = await supabase
+      .from("courses")
+      .select("id,prise,depose,month_key")
+      .eq("profile", profile)
+      .eq("prestation", "transfert")
+      .like("month_key", `${year}-%`)
+      .is("distance_km", null)
+      .not("prise", "is", null)
+      .not("depose", "is", null)
+      .order("date", { ascending: false });
+
+    let processed = 0, failed = 0;
+    for (const r of (rows || [])) {
+      if (abortRef.current) break;
+      const km = await computeDrivingDistance(r.prise, r.depose);
+      if (km != null) {
+        await supabase.from("courses").update({ distance_km: km }).eq("id", r.id);
+      } else {
+        failed++;
+        setErrors(failed);
+      }
+      processed++;
+      setDone(processed);
+      // throttle ~5 appels/sec
+      await new Promise(res => setTimeout(res, 180));
+    }
+    setPhase("done");
+    if (onDone) onDone();
+  };
+
+  const stop = () => { abortRef.current = true; };
+
+  return (
+    <Modal title={`📏 Rattrapage km — ${year}`} onClose={phase === "running" ? () => {} : onClose}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {phase === "counting" && (
+          <div style={{ textAlign: "center", padding: 20, color: C.muted }}>
+            <div style={{ fontSize: 28 }}>⏳</div>
+            <div style={{ marginTop: 8 }}>Comptage des courses…</div>
+          </div>
+        )}
+
+        {phase === "error" && (
+          <div style={{ background: `${C.red}15`, border: `1px solid ${C.red}55`, borderRadius: 10, padding: 14, color: C.red, fontSize: 13 }}>
+            Erreur : {errMsg}
+          </div>
+        )}
+
+        {phase === "ready" && (
+          <>
+            <div style={{ background: C.surface, borderRadius: 10, padding: 16, textAlign: "center" }}>
+              <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Courses à traiter en {year}</div>
+              <div style={{ fontSize: 36, fontWeight: 800, color: C.gold, fontFamily: FONT.display }}>{total}</div>
+              <div style={{ fontSize: 12, color: C.muted, marginTop: 6 }}>
+                Courses transfert avec prise + dépose, sans km calculé
+              </div>
+            </div>
+
+            {total === 0 ? (
+              <div style={{ color: C.green, fontSize: 13, textAlign: "center", padding: 12 }}>
+                ✓ Toutes les courses de {year} ont déjà leur kilométrage
+              </div>
+            ) : (
+              <>
+                <div style={{ background: `${C.teal}10`, border: `1px solid ${C.teal}33`, borderRadius: 10, padding: 12, fontSize: 13, color: C.text, lineHeight: 1.5 }}>
+                  Le calcul va lancer <b>{total}</b> appels à Google Routes API ({((total / 10000) * 100).toFixed(1)}% du quota gratuit mensuel).
+                  Durée estimée : <b>~{Math.ceil(total * 0.18 / 60)} min</b>.
+                  Tu peux arrêter à tout moment.
+                </div>
+                <Btn onClick={start}>🚀 Lancer le calcul</Btn>
+              </>
+            )}
+          </>
+        )}
+
+        {(phase === "running" || phase === "done") && (
+          <>
+            <div style={{ background: C.surface, borderRadius: 10, padding: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+                <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: 1, fontWeight: 700 }}>
+                  {phase === "done" ? "Terminé" : "En cours…"}
+                </div>
+                <div style={{ fontSize: 14, fontFamily: "monospace", color: C.text, fontWeight: 700 }}>
+                  {done} / {total}
+                </div>
+              </div>
+              <div style={{ height: 8, background: C.bg, borderRadius: 4, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${total > 0 ? (done / total) * 100 : 0}%`, background: `linear-gradient(90deg, ${C.gold}, ${C.goldBright})`, borderRadius: 4, transition: "width 0.2s" }} />
+              </div>
+              {errors > 0 && (
+                <div style={{ fontSize: 11, color: C.orange, marginTop: 8 }}>
+                  ⚠ {errors} adresse{errors > 1 ? "s" : ""} non géocodable{errors > 1 ? "s" : ""} (ignorée{errors > 1 ? "s" : ""})
+                </div>
+              )}
+            </div>
+
+            {phase === "running" && (
+              <Btn variant="ghost" onClick={stop} style={{ color: C.red, border: `1px solid ${C.red}55` }}>⏹ Arrêter</Btn>
+            )}
+            {phase === "done" && (
+              <>
+                <div style={{ background: `${C.green}10`, border: `1px solid ${C.green}55`, borderRadius: 10, padding: 14, color: C.green, fontSize: 13, textAlign: "center" }}>
+                  ✓ {done - errors} course{done - errors > 1 ? "s" : ""} mise{done - errors > 1 ? "s" : ""} à jour
+                </div>
+                <Btn onClick={onClose}>Fermer</Btn>
+              </>
+            )}
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 // ── Graphiques annuels SVG ─────────────────────────────────────────────────────
 function YearCharts({ year, annualData, annualDataN1, topClients, byGamme }) {
   const months = Array.from({ length: 12 }, (_, i) => {
@@ -1573,6 +1721,7 @@ export default function App() {
   const [annualTopClients, setAnnualTopClients] = useState(null);
   const [annualByGamme, setAnnualByGamme] = useState(null);
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
+  const [showKmBackfill, setShowKmBackfill] = useState(false);
 
   const mk = monthKey(year, month);
   const savedChauffeurs = chauffeurObjects.map(c => c.name);
@@ -2713,6 +2862,7 @@ export default function App() {
                     <span style={{ fontSize: 16, fontWeight: 800, color: C.gold }}>{year}</span>
                     <button onClick={() => { setAnnualData(null); setAnnualDataN1(null); setAnnualTopClients(null); setAnnualByGamme(null); setYear(y => y + 1); }} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted, borderRadius: 8, width: 30, height: 30, cursor: "pointer", fontSize: 16 }}>›</button>
                     <Btn small onClick={() => { setAnnualData(null); setAnnualDataN1(null); setAnnualTopClients(null); setAnnualByGamme(null); loadAnnualData(); }} style={{ background: C.surface, color: C.teal, border: `1px solid ${C.teal}44` }}>↺</Btn>
+                    <Btn small onClick={() => setShowKmBackfill(true)} style={{ background: C.surface, color: C.teal, border: `1px solid ${C.teal}44` }} title="Calculer les km manquants">📏</Btn>
                   </div>
                 </div>
                 {annualLoading && <div style={{ textAlign: "center", padding: 40, color: C.muted }}><div style={{ fontSize: 32 }}>⏳</div><div style={{ marginTop: 8 }}>Chargement…</div></div>}
@@ -2809,6 +2959,7 @@ export default function App() {
       {editClient && <ClientModal initial={editClient.nom ? editClient : null} onSave={handleSaveClient} onClose={() => setEditClient(null)} />}
       {reminderClient && <ReminderModal client={reminderClient} onClose={() => setReminderClient(null)} />}
       {showGlobalSearch && <GlobalSearchModal profile={profile} onNavigate={(y, m) => { setYear(y); setMonth(m); setShowGlobalSearch(false); }} onClose={() => setShowGlobalSearch(false)} />}
+      {showKmBackfill && <KmBackfillModal year={year} profile={profile} onClose={() => setShowKmBackfill(false)} onDone={() => { setAnnualData(null); setAnnualDataN1(null); setAnnualTopClients(null); setAnnualByGamme(null); loadAnnualData(); }} />}
 
       {/* Bouton flottant + */}
       {tab === "courses" && !showCourseModal && !editCourse && <button onClick={() => setShowCourseModal(true)} style={{ position: "fixed", bottom: 24, right: 24, width: 54, height: 54, borderRadius: "50%", background: C.gold, border: "none", cursor: "pointer", fontSize: 24, color: C.bg, fontWeight: 700, boxShadow: `0 4px 20px ${C.gold}55`, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>}
