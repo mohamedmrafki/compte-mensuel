@@ -1848,7 +1848,7 @@ export default function App() {
   const todayStr = today();
 
   const monthStats = useMemo(() => {
-    let totalCA = 0, totalCC = 0, totalTips = 0, todayCA = 0, todayCount = 0, privateCA = 0, totalKm = 0;
+    let totalCA = 0, totalCC = 0, totalTips = 0, todayCA = 0, todayCount = 0, privateCA = 0, totalKm = 0, todayKm = 0;
     const byCompany = {};
     const byVehicle = {};
     const byChauffeur = {};
@@ -1856,11 +1856,12 @@ export default function App() {
     for (const c of mc) {
       const total = Number(c.total || 0);
       const cost = Number(c.chauffeurCost || 0);
+      const km = c.distanceKm != null ? Number(c.distanceKm) : 0;
       totalCA += total;
       totalCC += cost;
       totalTips += Number(c.tips || 0);
-      if (c.distanceKm != null) totalKm += Number(c.distanceKm);
-      if (c.date === todayStr) { todayCA += total; todayCount++; }
+      totalKm += km;
+      if (c.date === todayStr) { todayCA += total; todayCount++; todayKm += km; }
       if (c.isPrivate) privateCA += total;
       if (c.company && !c.isPrivate) {
         if (!byCompany[c.company]) byCompany[c.company] = { amount: 0, trips: [] };
@@ -1868,9 +1869,10 @@ export default function App() {
         byCompany[c.company].trips.push(c);
       }
       const v = c.vehicule || "N/A";
-      if (!byVehicle[v]) byVehicle[v] = { trips: 0, ca: 0 };
+      if (!byVehicle[v]) byVehicle[v] = { trips: 0, ca: 0, km: 0 };
       byVehicle[v].trips++;
       byVehicle[v].ca += total;
+      byVehicle[v].km += km;
       if (c.chauffeur && c.chauffeur !== defaultChauffeur && cost > 0) {
         if (!byChauffeur[c.chauffeur]) byChauffeur[c.chauffeur] = { trips: [], cost: 0, ca: 0 };
         byChauffeur[c.chauffeur].trips.push(c);
@@ -1880,10 +1882,10 @@ export default function App() {
       driversSet.add(c.chauffeur || defaultChauffeur);
     }
     driversSet.delete(undefined); driversSet.delete(null); driversSet.delete("");
-    return { totalCA, totalCC, totalTips, todayCA, todayCount, privateCA, totalKm, byCompany, byVehicle, byChauffeur, uniqueDriversInMonth: [...driversSet] };
+    return { totalCA, totalCC, totalTips, todayCA, todayCount, privateCA, totalKm, todayKm, byCompany, byVehicle, byChauffeur, uniqueDriversInMonth: [...driversSet] };
   }, [mc, defaultChauffeur, todayStr]);
 
-  const { totalCA, totalCC, totalTips, todayCA, todayCount, privateCA, totalKm, byCompany, byVehicle, byChauffeur, uniqueDriversInMonth } = monthStats;
+  const { totalCA, totalCC, totalTips, todayCA, todayCount, privateCA, totalKm, todayKm, byCompany, byVehicle, byChauffeur, uniqueDriversInMonth } = monthStats;
   const totalFrais = useMemo(() => mf.reduce((s, f) => s + Number(f.amount || 0), 0), [mf]);
   const totalMargeCommission = profile === "commission" ? totalCA - totalCC : commissionCA;
   const commissionShare = totalMargeCommission / 2;
@@ -2264,9 +2266,17 @@ export default function App() {
                   </div>
                 </div>
                 {todayCount > 0 && (
-                  <div style={{ background: `${C.gold}10`, border: `1px solid ${C.gold}33`, borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div><div style={{ fontSize: 11, color: C.goldDim, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Aujourd'hui</div><div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>{todayCount} course{todayCount > 1 ? "s" : ""}</div></div>
-                    <div style={{ fontSize: 20, fontWeight: 800, color: C.gold, fontFamily: "monospace" }}>{fmt(todayCA)}</div>
+                  <div style={{ background: `${C.gold}10`, border: `1px solid ${C.gold}33`, borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 11, color: C.goldDim, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Aujourd'hui</div>
+                      <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>{todayCount} course{todayCount > 1 ? "s" : ""}</div>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: C.gold, fontFamily: "monospace" }}>{fmt(todayCA)}</div>
+                      {todayKm > 0 && (
+                        <div style={{ fontSize: 12, color: C.teal, fontFamily: "monospace", fontWeight: 600 }}>📏 {Math.round(todayKm).toLocaleString("fr-FR")} km</div>
+                      )}
+                    </div>
                   </div>
                 )}
                 <div style={{ display: "flex", gap: 10 }}>
@@ -2337,6 +2347,25 @@ export default function App() {
                           </div>
                           <div style={{ fontSize: 22, fontWeight: 800, color: C.teal, fontFamily: "monospace" }}>{Math.round(totalKm).toLocaleString("fr-FR")} <span style={{ fontSize: 13, color: C.muted }}>km</span></div>
                         </div>
+                        {Object.entries(byVehicle).filter(([, d]) => d.km > 0).length > 0 && (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
+                            {Object.entries(byVehicle)
+                              .filter(([, d]) => d.km > 0)
+                              .sort((a, b) => b[1].km - a[1].km)
+                              .map(([v, d]) => (
+                                <div key={v} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12 }}>
+                                  <span style={{ display: "flex", alignItems: "center", gap: 6, color: C.text }}>
+                                    <span style={{ width: 8, height: 8, background: vColor(v), borderRadius: 2 }} />
+                                    {vIcon(v)} {v}
+                                    <span style={{ color: C.muted, fontSize: 11 }}>· {d.trips} c.</span>
+                                  </span>
+                                  <span style={{ fontFamily: "monospace", color: C.teal, fontWeight: 600 }}>
+                                    {Math.round(d.km).toLocaleString("fr-FR")} km
+                                  </span>
+                                </div>
+                              ))}
+                          </div>
+                        )}
                       </Card>
                     )}
                     <Card style={{ borderColor: net >= 0 ? `${C.green}44` : `${C.red}44` }}>
