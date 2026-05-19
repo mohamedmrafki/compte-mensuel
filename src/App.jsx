@@ -1124,6 +1124,295 @@ function ReminderModal({ client, onClose }) {
   );
 }
 
+// ── Modal Recherche globale (tous les mois) ────────────────────────────────────
+function GlobalSearchModal({ profile, onNavigate, onClose }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const timer = useRef();
+
+  useEffect(() => {
+    clearTimeout(timer.current);
+    if (!query || query.trim().length < 2) { setResults([]); return; }
+    timer.current = setTimeout(async () => {
+      setLoading(true);
+      const q = query.trim();
+      const { data } = await supabase
+        .from("courses")
+        .select("id,date,heure,client,company,vehicule,total,prise,depose,month_key,is_private")
+        .eq("profile", profile)
+        .or(`client.ilike.%${q}%,company.ilike.%${q}%,prise.ilike.%${q}%,depose.ilike.%${q}%,notes.ilike.%${q}%`)
+        .order("date", { ascending: false })
+        .limit(50);
+      setResults(data || []);
+      setLoading(false);
+    }, 280);
+    return () => clearTimeout(timer.current);
+  }, [query, profile]);
+
+  // Grouper par mois
+  const grouped = useMemo(() => {
+    const g = {};
+    for (const r of results) {
+      const mk = r.month_key;
+      if (!g[mk]) g[mk] = [];
+      g[mk].push(r);
+    }
+    return Object.entries(g).sort((a, b) => b[0].localeCompare(a[0]));
+  }, [results]);
+
+  const formatMonth = (mk) => {
+    const [y, m] = mk.split("-").map(Number);
+    return `${MOIS[m - 1]} ${y}`;
+  };
+
+  return (
+    <Modal title="🔍 Recherche globale" onClose={onClose}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ position: "relative" }}>
+          <input
+            autoFocus
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Client, société, lieu…"
+            style={{ ...iBase, paddingRight: 36, fontSize: 15 }}
+          />
+          <div style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 14, opacity: 0.6 }}>
+            {loading ? "⏳" : "🔍"}
+          </div>
+        </div>
+
+        {query.trim().length > 0 && query.trim().length < 2 && (
+          <div style={{ color: C.muted, fontSize: 13, textAlign: "center", padding: "12px 0" }}>
+            Tape au moins 2 caractères
+          </div>
+        )}
+
+        {!loading && query.trim().length >= 2 && results.length === 0 && (
+          <div style={{ color: C.muted, fontSize: 13, textAlign: "center", padding: "20px 0" }}>
+            Aucun résultat pour "{query}"
+          </div>
+        )}
+
+        {results.length > 0 && (
+          <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: 1 }}>
+            {results.length} résultat{results.length > 1 ? "s" : ""}
+          </div>
+        )}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {grouped.map(([mk, items]) => {
+            const [y, m] = mk.split("-").map(Number);
+            const monthTotal = items.reduce((s, c) => s + Number(c.total || 0), 0);
+            return (
+              <div key={mk}>
+                <button
+                  onClick={() => onNavigate(y, m - 1)}
+                  style={{
+                    width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center",
+                    background: C.goldGlow, border: `1px solid ${C.gold}40`,
+                    borderRadius: 10, padding: "8px 12px", cursor: "pointer", marginBottom: 8,
+                    color: C.gold, fontSize: 13, fontWeight: 700, fontFamily: FONT.display, fontStyle: "italic",
+                  }}
+                >
+                  <span>{formatMonth(mk)} · {items.length} course{items.length > 1 ? "s" : ""}</span>
+                  <span style={{ fontFamily: "monospace", fontSize: 12 }}>{fmt(monthTotal)} →</span>
+                </button>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {items.map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => onNavigate(y, m - 1)}
+                      style={{
+                        textAlign: "left", background: C.surface, border: `1px solid ${C.border}`,
+                        borderRadius: 10, padding: "10px 12px", cursor: "pointer", color: C.text,
+                        display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10,
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 3 }}>
+                          {c.client || "—"} {c.company && <span style={{ color: C.muted, fontWeight: 400 }}>· {c.company}</span>}
+                        </div>
+                        <div style={{ fontSize: 11, color: C.muted, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                          <span>{new Date(c.date).toLocaleDateString("fr-FR")} · {c.heure || "—"}</span>
+                          {c.vehicule && <span>· {c.vehicule}</span>}
+                        </div>
+                        {(c.prise || c.depose) && (
+                          <div style={{ fontSize: 11, color: C.muted, marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            📍 {[c.prise, c.depose].filter(Boolean).join(" → ")}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: C.gold, flexShrink: 0 }}>
+                        {fmt(c.total)}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ── Graphiques annuels SVG ─────────────────────────────────────────────────────
+function YearCharts({ year, annualData, annualDataN1, topClients, byGamme }) {
+  const months = Array.from({ length: 12 }, (_, i) => {
+    const mk = `${year}-${String(i + 1).padStart(2, "0")}`;
+    return annualData[mk]?.ca || 0;
+  });
+  const monthsN1 = Array.from({ length: 12 }, (_, i) => {
+    const mk = `${year - 1}-${String(i + 1).padStart(2, "0")}`;
+    return annualDataN1?.[mk]?.ca || 0;
+  });
+  const maxVal = Math.max(...months, ...monthsN1, 1);
+  const hasN1 = monthsN1.some(v => v > 0);
+
+  // Comparaison N vs N-1
+  const totalN = months.reduce((a, b) => a + b, 0);
+  const totalN1 = monthsN1.reduce((a, b) => a + b, 0);
+  const variation = totalN1 > 0 ? ((totalN - totalN1) / totalN1) * 100 : null;
+
+  // SVG dimensions
+  const W = 320, H = 180, P = { l: 4, r: 4, t: 16, b: 26 };
+  const cw = W - P.l - P.r;
+  const ch = H - P.t - P.b;
+  const barW = cw / 12 - 4;
+
+  const topGamme = Object.entries(byGamme || {}).sort((a, b) => b[1].ca - a[1].ca);
+  const topGammeTotal = topGamme.reduce((s, [, d]) => s + d.ca, 0);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Graphique barres CA mois par mois */}
+      <Card>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+          <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: 1, fontWeight: 700 }}>CA par mois</div>
+          {hasN1 && variation !== null && (
+            <div style={{ fontSize: 11, color: variation >= 0 ? C.green : C.red, fontWeight: 700 }}>
+              {variation >= 0 ? "↑" : "↓"} {Math.abs(variation).toFixed(0)}% vs {year - 1}
+            </div>
+          )}
+        </div>
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="180" style={{ display: "block", marginTop: 8 }} preserveAspectRatio="none">
+          {/* Gridlines horizontales */}
+          {[0.25, 0.5, 0.75, 1].map(p => (
+            <line key={p} x1={P.l} y1={P.t + ch * (1 - p)} x2={W - P.r} y2={P.t + ch * (1 - p)} stroke={C.border} strokeWidth="0.5" strokeDasharray="2,3" />
+          ))}
+          {/* Barres N */}
+          {months.map((v, i) => {
+            const h = (v / maxVal) * ch;
+            const x = P.l + (cw / 12) * i + 2;
+            const y = P.t + ch - h;
+            return (
+              <g key={i}>
+                <rect x={x} y={y} width={barW} height={h} fill={C.gold} opacity={v > 0 ? 1 : 0.15} rx="2" />
+                {/* Ligne N-1 */}
+                {hasN1 && i < 11 && (
+                  <line
+                    x1={P.l + (cw / 12) * i + barW / 2 + 2}
+                    y1={P.t + ch - (monthsN1[i] / maxVal) * ch}
+                    x2={P.l + (cw / 12) * (i + 1) + barW / 2 + 2}
+                    y2={P.t + ch - (monthsN1[i + 1] / maxVal) * ch}
+                    stroke={C.muted}
+                    strokeWidth="1.5"
+                    strokeDasharray="3,2"
+                    opacity="0.7"
+                  />
+                )}
+                {hasN1 && (
+                  <circle cx={P.l + (cw / 12) * i + barW / 2 + 2} cy={P.t + ch - (monthsN1[i] / maxVal) * ch} r="2" fill={C.muted} opacity="0.7" />
+                )}
+              </g>
+            );
+          })}
+          {/* Labels mois */}
+          {months.map((v, i) => (
+            <text key={i} x={P.l + (cw / 12) * i + barW / 2 + 2} y={H - 12} textAnchor="middle" fontSize="9" fill={C.muted} fontFamily="Inter, sans-serif">
+              {MOIS[i].slice(0, 3).toLowerCase()}
+            </text>
+          ))}
+        </svg>
+        <div style={{ display: "flex", gap: 16, fontSize: 11, color: C.muted, marginTop: 4 }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <span style={{ width: 12, height: 8, background: C.gold, borderRadius: 2 }} /> {year}
+          </span>
+          {hasN1 && (
+            <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={{ width: 12, height: 2, background: C.muted, borderRadius: 2 }} /> {year - 1}
+            </span>
+          )}
+        </div>
+      </Card>
+
+      {/* Top 5 clients */}
+      {topClients && topClients.length > 0 && (
+        <Card>
+          <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: 1, fontWeight: 700, marginBottom: 12 }}>
+            🏆 Top 5 clients {year}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {topClients.slice(0, 5).map((c, i) => {
+              const pct = (c.ca / topClients[0].ca) * 100;
+              return (
+                <div key={c.name}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                    <span style={{ color: C.text, fontWeight: 600 }}>
+                      <span style={{ color: C.gold, fontWeight: 700, marginRight: 6 }}>{i + 1}.</span>
+                      {c.name}
+                      <span style={{ color: C.muted, fontWeight: 400, marginLeft: 6 }}>· {c.count} course{c.count > 1 ? "s" : ""}</span>
+                    </span>
+                    <span style={{ fontFamily: "monospace", color: C.gold, fontWeight: 700 }}>{fmt(c.ca)}</span>
+                  </div>
+                  <div style={{ height: 4, background: C.surface, borderRadius: 2, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${pct}%`, background: `linear-gradient(90deg, ${C.gold}, ${C.goldBright})`, borderRadius: 2 }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
+      {/* Répartition gammes */}
+      {topGamme.length > 0 && topGammeTotal > 0 && (
+        <Card>
+          <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: 1, fontWeight: 700, marginBottom: 12 }}>
+            🚗 Répartition par gamme
+          </div>
+          {/* Stacked bar */}
+          <div style={{ display: "flex", height: 14, borderRadius: 8, overflow: "hidden", marginBottom: 12 }}>
+            {topGamme.map(([v, d]) => {
+              const pct = (d.ca / topGammeTotal) * 100;
+              return <div key={v} style={{ width: `${pct}%`, background: vColor(v) }} title={`${v}: ${fmt(d.ca)}`} />;
+            })}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {topGamme.map(([v, d]) => {
+              const pct = (d.ca / topGammeTotal) * 100;
+              return (
+                <div key={v} style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 6, color: C.text }}>
+                    <span style={{ width: 10, height: 10, background: vColor(v), borderRadius: 2 }} />
+                    {vIcon(v)} {v}
+                    <span style={{ color: C.muted, fontSize: 11 }}>· {d.trips} c.</span>
+                  </span>
+                  <span style={{ fontFamily: "monospace", color: C.text, fontWeight: 600 }}>
+                    {fmt(d.ca)} <span style={{ color: C.muted, fontSize: 11 }}>· {pct.toFixed(0)}%</span>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 // ── Écran de verrouillage PIN ─────────────────────────────────────────────────
 const PIN_CODE = "93270";
 function PinLock({ onUnlock }) {
@@ -1247,6 +1536,10 @@ export default function App() {
   const [societeStatusFilter, setSocieteStatusFilter] = useState(null);
   const [annualClients, setAnnualClients] = useState(null);
   const [annualClientsLoading, setAnnualClientsLoading] = useState(false);
+  const [annualDataN1, setAnnualDataN1] = useState(null);
+  const [annualTopClients, setAnnualTopClients] = useState(null);
+  const [annualByGamme, setAnnualByGamme] = useState(null);
+  const [showGlobalSearch, setShowGlobalSearch] = useState(false);
 
   const mk = monthKey(year, month);
   const savedChauffeurs = chauffeurObjects.map(c => c.name);
@@ -1628,26 +1921,50 @@ export default function App() {
     setAnnualLoading(true);
     try {
       const queries = [
-        supabase.from("courses").select("total,chauffeur_cost,month_key,tips").like("month_key", `${year}-%`).eq("profile", profile),
+        supabase.from("courses").select("total,chauffeur_cost,month_key,tips,client,company,vehicule,is_private").like("month_key", `${year}-%`).eq("profile", profile),
         supabase.from("frais").select("amount,month_key").like("month_key", `${year}-%`).eq("profile", profile),
+        supabase.from("courses").select("total,month_key").like("month_key", `${year - 1}-%`).eq("profile", profile),
       ];
       if (profile !== "commission") {
         queries.push(supabase.from("courses").select("total,chauffeur_cost,month_key").like("month_key", `${year}-%`).eq("profile", "commission"));
       }
-      const [cRes, fRes, commRes] = await Promise.all(queries);
+      const [cRes, fRes, cN1Res, commRes] = await Promise.all(queries);
       const byMonth = {};
+      const byMonthN1 = {};
       for (let m = 1; m <= 12; m++) {
-        const mk2 = `${year}-${String(m).padStart(2,"0")}`;
-        byMonth[mk2] = { ca: 0, tips: 0, frais: 0, cc: 0, commMarge: 0 };
+        byMonth[`${year}-${String(m).padStart(2,"0")}`] = { ca: 0, tips: 0, frais: 0, cc: 0, commMarge: 0 };
+        byMonthN1[`${year - 1}-${String(m).padStart(2,"0")}`] = { ca: 0 };
       }
+      const clientsAgg = {};
+      const gammeAgg = {};
       (cRes.data || []).forEach(r => {
-        if (byMonth[r.month_key]) { byMonth[r.month_key].ca += Number(r.total || 0); byMonth[r.month_key].cc += Number(r.chauffeur_cost || 0); byMonth[r.month_key].tips += Number(r.tips || 0); }
+        const total = Number(r.total || 0);
+        if (byMonth[r.month_key]) { byMonth[r.month_key].ca += total; byMonth[r.month_key].cc += Number(r.chauffeur_cost || 0); byMonth[r.month_key].tips += Number(r.tips || 0); }
+        // Top clients : on prend la société pour les pros, le nom client pour les privés
+        const key = r.is_private ? (r.client || "—") : (r.company || r.client || "—");
+        if (key && key !== "—") {
+          if (!clientsAgg[key]) clientsAgg[key] = { name: key, ca: 0, count: 0 };
+          clientsAgg[key].ca += total;
+          clientsAgg[key].count += 1;
+        }
+        // By gamme
+        const v = r.vehicule || "N/A";
+        if (v !== "N/A") {
+          if (!gammeAgg[v]) gammeAgg[v] = { ca: 0, trips: 0 };
+          gammeAgg[v].ca += total;
+          gammeAgg[v].trips += 1;
+        }
       });
       (fRes.data || []).forEach(r => { if (byMonth[r.month_key]) byMonth[r.month_key].frais += Number(r.amount || 0); });
+      (cN1Res.data || []).forEach(r => { if (byMonthN1[r.month_key]) byMonthN1[r.month_key].ca += Number(r.total || 0); });
       if (commRes) {
         (commRes.data || []).forEach(r => { if (byMonth[r.month_key]) byMonth[r.month_key].commMarge += Number(r.total || 0) - Number(r.chauffeur_cost || 0); });
       }
+      const topClients = Object.values(clientsAgg).sort((a, b) => b.ca - a.ca).slice(0, 5);
       setAnnualData(byMonth);
+      setAnnualDataN1(byMonthN1);
+      setAnnualTopClients(topClients);
+      setAnnualByGamme(gammeAgg);
     } finally { setAnnualLoading(false); }
   };
 
@@ -1708,6 +2025,7 @@ export default function App() {
               <div style={{ fontFamily: FONT.display, fontSize: 16, fontWeight: 700, fontStyle: "italic", color: C.goldBright, textTransform: "capitalize" }}>{MOIS[month].slice(0, 4)}.</div>
             </button>
             <button onClick={nextMonth} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted, borderRadius: 10, width: 34, height: 34, cursor: "pointer", fontSize: 17, transition: "all 0.15s" }} onMouseEnter={e => { e.currentTarget.style.borderColor = C.border2; e.currentTarget.style.color = C.text; }} onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.muted; }}>›</button>
+            <button onClick={() => setShowGlobalSearch(true)} title="Recherche globale" style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted, borderRadius: 10, width: 34, height: 34, cursor: "pointer", fontSize: 15, marginLeft: 4, transition: "all 0.15s" }} onMouseEnter={e => { e.currentTarget.style.borderColor = `${C.gold}55`; e.currentTarget.style.color = C.gold; }} onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.muted; }}>🔍</button>
           </div>
         </div>
         <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 2, WebkitOverflowScrolling: "touch" }}>
@@ -2334,10 +2652,10 @@ export default function App() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: C.muted }}>Bilan {year}</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <button onClick={() => { setAnnualData(null); setYear(y => y - 1); }} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted, borderRadius: 8, width: 30, height: 30, cursor: "pointer", fontSize: 16 }}>‹</button>
+                    <button onClick={() => { setAnnualData(null); setAnnualDataN1(null); setAnnualTopClients(null); setAnnualByGamme(null); setYear(y => y - 1); }} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted, borderRadius: 8, width: 30, height: 30, cursor: "pointer", fontSize: 16 }}>‹</button>
                     <span style={{ fontSize: 16, fontWeight: 800, color: C.gold }}>{year}</span>
-                    <button onClick={() => { setAnnualData(null); setYear(y => y + 1); }} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted, borderRadius: 8, width: 30, height: 30, cursor: "pointer", fontSize: 16 }}>›</button>
-                    <Btn small onClick={() => { setAnnualData(null); loadAnnualData(); }} style={{ background: C.surface, color: C.teal, border: `1px solid ${C.teal}44` }}>↺</Btn>
+                    <button onClick={() => { setAnnualData(null); setAnnualDataN1(null); setAnnualTopClients(null); setAnnualByGamme(null); setYear(y => y + 1); }} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted, borderRadius: 8, width: 30, height: 30, cursor: "pointer", fontSize: 16 }}>›</button>
+                    <Btn small onClick={() => { setAnnualData(null); setAnnualDataN1(null); setAnnualTopClients(null); setAnnualByGamme(null); loadAnnualData(); }} style={{ background: C.surface, color: C.teal, border: `1px solid ${C.teal}44` }}>↺</Btn>
                   </div>
                 </div>
                 {annualLoading && <div style={{ textAlign: "center", padding: 40, color: C.muted }}><div style={{ fontSize: 32 }}>⏳</div><div style={{ marginTop: 8 }}>Chargement…</div></div>}
@@ -2379,6 +2697,8 @@ export default function App() {
                           })()}
                         </div>
                       </Card>
+                      {/* Graphiques */}
+                      <YearCharts year={year} annualData={annualData} annualDataN1={annualDataN1} topClients={annualTopClients} byGamme={annualByGamme} />
                       {/* Mois */}
                       {months.map(([mk2, d]) => {
                         const mIdx = Number(mk2.split("-")[1]) - 1;
@@ -2429,6 +2749,7 @@ export default function App() {
       {showTarifsModal && <TarifsModal tarifs={sousTraitantTarifs} onSave={saveTarifs} tarifsSecInit={chauffeurSecTarifs} onSaveSec={saveChauffeurSecTarifs} onClose={() => setShowTarifsModal(false)} />}
       {editClient && <ClientModal initial={editClient.nom ? editClient : null} onSave={handleSaveClient} onClose={() => setEditClient(null)} />}
       {reminderClient && <ReminderModal client={reminderClient} onClose={() => setReminderClient(null)} />}
+      {showGlobalSearch && <GlobalSearchModal profile={profile} onNavigate={(y, m) => { setYear(y); setMonth(m); setShowGlobalSearch(false); }} onClose={() => setShowGlobalSearch(false)} />}
 
       {/* Bouton flottant + */}
       {tab === "courses" && !showCourseModal && !editCourse && <button onClick={() => setShowCourseModal(true)} style={{ position: "fixed", bottom: 24, right: 24, width: 54, height: 54, borderRadius: "50%", background: C.gold, border: "none", cursor: "pointer", fontSize: 24, color: C.bg, fontWeight: 700, boxShadow: `0 4px 20px ${C.gold}55`, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>}
