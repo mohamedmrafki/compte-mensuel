@@ -91,6 +91,7 @@ function courseToDb(c, mk) {
     chauffeur_hourly_rate: c.chauffeurHourlyRate !== "" && c.chauffeurHourlyRate != null ? Number(c.chauffeurHourlyRate) : null,
     chauffeur_cost: Number(c.chauffeurCost) || 0,
     is_private: c.isPrivate || false, company: c.company || null, notes: c.notes || null,
+    distance_km: c.distanceKm != null && c.distanceKm !== "" ? Number(c.distanceKm) : null,
     month_key: mk,
   };
 }
@@ -109,6 +110,7 @@ function courseFromDb(r) {
     chauffeurHourlyRate: r.chauffeur_hourly_rate != null ? String(r.chauffeur_hourly_rate) : "",
     chauffeurCost: r.chauffeur_cost != null ? String(r.chauffeur_cost) : "",
     isPrivate: r.is_private || false, company: r.company || "", notes: r.notes || "",
+    distanceKm: r.distance_km != null ? Number(r.distance_km) : null,
   };
 }
 function fraisToDb(f, mk) {
@@ -297,6 +299,37 @@ async function searchPlaces(query) {
   if (google && google.length > 0) return google.slice(0, 7);
   const ban = await searchBAN(query).catch(() => []);
   return ban.slice(0, 7);
+}
+
+// Calcul distance de conduite Google Routes API (en km, arrondi à 1 décimale)
+async function computeDrivingDistance(origin, destination) {
+  if (!GOOGLE_PLACES_KEY || !origin || !destination) return null;
+  try {
+    const res = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": GOOGLE_PLACES_KEY,
+        "X-Goog-FieldMask": "routes.distanceMeters",
+      },
+      body: JSON.stringify({
+        origin: { address: origin },
+        destination: { address: destination },
+        travelMode: "DRIVE",
+        routingPreference: "TRAFFIC_UNAWARE",
+        languageCode: "fr",
+        regionCode: "fr",
+        units: "METRIC",
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const meters = data.routes?.[0]?.distanceMeters;
+    if (typeof meters !== "number") return null;
+    return Math.round(meters / 100) / 10; // arrondi à 0.1 km
+  } catch {
+    return null;
+  }
 }
 
 function poiIcon(item) {
@@ -1660,7 +1693,7 @@ export default function App() {
   const todayStr = today();
 
   const monthStats = useMemo(() => {
-    let totalCA = 0, totalCC = 0, totalTips = 0, todayCA = 0, todayCount = 0, privateCA = 0;
+    let totalCA = 0, totalCC = 0, totalTips = 0, todayCA = 0, todayCount = 0, privateCA = 0, totalKm = 0;
     const byCompany = {};
     const byVehicle = {};
     const byChauffeur = {};
@@ -1671,6 +1704,7 @@ export default function App() {
       totalCA += total;
       totalCC += cost;
       totalTips += Number(c.tips || 0);
+      if (c.distanceKm != null) totalKm += Number(c.distanceKm);
       if (c.date === todayStr) { todayCA += total; todayCount++; }
       if (c.isPrivate) privateCA += total;
       if (c.company && !c.isPrivate) {
@@ -1691,10 +1725,10 @@ export default function App() {
       driversSet.add(c.chauffeur || defaultChauffeur);
     }
     driversSet.delete(undefined); driversSet.delete(null); driversSet.delete("");
-    return { totalCA, totalCC, totalTips, todayCA, todayCount, privateCA, byCompany, byVehicle, byChauffeur, uniqueDriversInMonth: [...driversSet] };
+    return { totalCA, totalCC, totalTips, todayCA, todayCount, privateCA, totalKm, byCompany, byVehicle, byChauffeur, uniqueDriversInMonth: [...driversSet] };
   }, [mc, defaultChauffeur, todayStr]);
 
-  const { totalCA, totalCC, totalTips, todayCA, todayCount, privateCA, byCompany, byVehicle, byChauffeur, uniqueDriversInMonth } = monthStats;
+  const { totalCA, totalCC, totalTips, todayCA, todayCount, privateCA, totalKm, byCompany, byVehicle, byChauffeur, uniqueDriversInMonth } = monthStats;
   const totalFrais = useMemo(() => mf.reduce((s, f) => s + Number(f.amount || 0), 0), [mf]);
   const totalMargeCommission = profile === "commission" ? totalCA - totalCC : commissionCA;
   const commissionShare = totalMargeCommission / 2;
@@ -1712,11 +1746,17 @@ export default function App() {
 
   // ── Handlers Courses ────────────────────────────────────────────────────────
   const saveCourse = async (c) => {
-    if (!DEMO_MODE) await supabase.from("courses").upsert({ ...courseToDb(c, mk), profile });
+    // Calcul auto de la distance si transfert + prise + dépose, et pas déjà calculé
+    let enriched = c;
+    if (c.prestation === "transfert" && c.prise && c.depose && c.distanceKm == null) {
+      const km = await computeDrivingDistance(c.prise, c.depose);
+      if (km != null) enriched = { ...c, distanceKm: km };
+    }
+    if (!DEMO_MODE) await supabase.from("courses").upsert({ ...courseToDb(enriched, mk), profile });
     setCourses(prev => {
       const list = [...prev];
-      const idx = list.findIndex(x => x.id === c.id);
-      if (idx >= 0) list[idx] = c; else list.push(c);
+      const idx = list.findIndex(x => x.id === enriched.id);
+      if (idx >= 0) list[idx] = enriched; else list.push(enriched);
       list.sort((a, b) => b.date.localeCompare(a.date) || (b.heure || "00:00").localeCompare(a.heure || "00:00"));
       return list;
     });
@@ -1921,7 +1961,7 @@ export default function App() {
     setAnnualLoading(true);
     try {
       const queries = [
-        supabase.from("courses").select("total,chauffeur_cost,month_key,tips,client,company,vehicule,is_private").like("month_key", `${year}-%`).eq("profile", profile),
+        supabase.from("courses").select("total,chauffeur_cost,month_key,tips,client,company,vehicule,is_private,distance_km").like("month_key", `${year}-%`).eq("profile", profile),
         supabase.from("frais").select("amount,month_key").like("month_key", `${year}-%`).eq("profile", profile),
         supabase.from("courses").select("total,month_key").like("month_key", `${year - 1}-%`).eq("profile", profile),
       ];
@@ -1932,14 +1972,19 @@ export default function App() {
       const byMonth = {};
       const byMonthN1 = {};
       for (let m = 1; m <= 12; m++) {
-        byMonth[`${year}-${String(m).padStart(2,"0")}`] = { ca: 0, tips: 0, frais: 0, cc: 0, commMarge: 0 };
+        byMonth[`${year}-${String(m).padStart(2,"0")}`] = { ca: 0, tips: 0, frais: 0, cc: 0, commMarge: 0, km: 0 };
         byMonthN1[`${year - 1}-${String(m).padStart(2,"0")}`] = { ca: 0 };
       }
       const clientsAgg = {};
       const gammeAgg = {};
       (cRes.data || []).forEach(r => {
         const total = Number(r.total || 0);
-        if (byMonth[r.month_key]) { byMonth[r.month_key].ca += total; byMonth[r.month_key].cc += Number(r.chauffeur_cost || 0); byMonth[r.month_key].tips += Number(r.tips || 0); }
+        if (byMonth[r.month_key]) {
+          byMonth[r.month_key].ca += total;
+          byMonth[r.month_key].cc += Number(r.chauffeur_cost || 0);
+          byMonth[r.month_key].tips += Number(r.tips || 0);
+          if (r.distance_km != null) byMonth[r.month_key].km += Number(r.distance_km);
+        }
         // Top clients : on prend la société pour les pros, le nom client pour les privés
         const key = r.is_private ? (r.client || "—") : (r.company || r.client || "—");
         if (key && key !== "—") {
@@ -2127,6 +2172,17 @@ export default function App() {
                       <Stat label="Frais" value={fmt(totalFrais)} color={C.red} />
                       <Stat label="Chauffeurs" value={fmt(totalCC)} color={C.orange} />
                     </div>
+                    {totalKm > 0 && (
+                      <Card style={{ borderColor: `${C.teal}44` }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div>
+                            <div style={{ fontSize: 11, color: C.teal, textTransform: "uppercase", letterSpacing: 1, fontWeight: 700, marginBottom: 4 }}>📏 Kilométrage du mois</div>
+                            <div style={{ fontSize: 11, color: C.muted }}>Pour défiscalisation au réel</div>
+                          </div>
+                          <div style={{ fontSize: 22, fontWeight: 800, color: C.teal, fontFamily: "monospace" }}>{Math.round(totalKm).toLocaleString("fr-FR")} <span style={{ fontSize: 13, color: C.muted }}>km</span></div>
+                        </div>
+                      </Card>
+                    )}
                     <Card style={{ borderColor: net >= 0 ? `${C.green}44` : `${C.red}44` }}>
                       <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Net (CA − Frais − Chauffeurs)</div>
                       <div style={{ fontSize: 28, fontWeight: 800, color: net >= 0 ? C.green : C.red, fontFamily: "monospace" }}>{fmt(net)}</div>
@@ -2220,6 +2276,7 @@ export default function App() {
                             <span style={{ fontSize: 11, padding: "2px 7px", borderRadius: 4, fontWeight: 600, background: c.prestation === "mad" ? `${C.purple}22` : `${C.blue}22`, color: c.prestation === "mad" ? C.purple : C.blue }}>{c.prestation === "mad" ? "⏱ MAD" : "🚗 Transfert"}</span>
                             {c.isPrivate ? <span style={{ fontSize: 11, color: C.green, background: `${C.green}22`, borderRadius: 4, padding: "2px 7px" }}>Privé</span> : c.company && <span style={{ fontSize: 11, color: C.gold, background: `${C.gold}18`, borderRadius: 4, padding: "2px 7px" }}>{c.company}</span>}
                             {sups.length > 0 && <span style={{ fontSize: 11, color: C.teal, background: `${C.teal}18`, borderRadius: 4, padding: "2px 7px" }}>+{sups.length} suppl.</span>}
+                            {c.distanceKm != null && <span style={{ fontSize: 11, color: C.muted, background: C.surface, borderRadius: 4, padding: "2px 7px", fontFamily: "monospace" }}>📏 {c.distanceKm} km</span>}
                           </div>
                           {c.chauffeur && <div style={{ fontSize: 12, color: c.chauffeur !== defaultChauffeur ? C.orange : C.muted, marginBottom: 3 }}>🧑‍✈️ {c.chauffeur}{c.chauffeur !== defaultChauffeur && Number(c.chauffeurCost) > 0 ? ` · ${fmt(c.chauffeurCost)}` : ""}</div>}
                           {c.client && <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>👤 {c.client}</div>}
@@ -2666,6 +2723,7 @@ export default function App() {
                   const totalCC = months.reduce((s, [, d]) => s + d.cc, 0);
                   const totalTipsA = months.reduce((s, [, d]) => s + d.tips, 0);
                   const totalCommMarge = months.reduce((s, [, d]) => s + d.commMarge, 0);
+                  const totalKmA = months.reduce((s, [, d]) => s + (d.km || 0), 0);
                   const totalNet = totalCA - totalFraisA - totalCC;
                   const isComm = profile === "commission";
                   return (
@@ -2682,6 +2740,7 @@ export default function App() {
                                 { label: "Net", val: fmt(totalNet), color: totalNet >= 0 ? C.green : C.red },
                                 ...(totalCommMarge > 0 ? [{ label: "Part commissions", val: fmt(totalCommMarge / 2), color: C.green }] : []),
                                 ...(totalTipsA > 0 ? [{ label: "Pourboires", val: fmt(totalTipsA), color: C.green }] : []),
+                                ...(totalKmA > 0 ? [{ label: "📏 Kilométrage", val: `${Math.round(totalKmA).toLocaleString("fr-FR")} km`, color: C.teal }] : []),
                               ] : [
                                 { label: "Marge nette", val: fmt(totalCA - totalCC), color: C.green },
                                 { label: "Part Oumar", val: fmt((totalCA - totalCC) / 2), color: C.blue },
