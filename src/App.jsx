@@ -1571,19 +1571,25 @@ function YearCharts({ year, annualData, annualDataN1, topClients, byGamme }) {
               return <div key={v} style={{ width: `${pct}%`, background: vColor(v) }} title={`${v}: ${fmt(d.ca)}`} />;
             })}
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {topGamme.map(([v, d]) => {
               const pct = (d.ca / topGammeTotal) * 100;
               return (
-                <div key={v} style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 6, color: C.text }}>
-                    <span style={{ width: 10, height: 10, background: vColor(v), borderRadius: 2 }} />
-                    {vIcon(v)} {v}
-                    <span style={{ color: C.muted, fontSize: 11 }}>· {d.trips} c.</span>
-                  </span>
-                  <span style={{ fontFamily: "monospace", color: C.text, fontWeight: 600 }}>
-                    {fmt(d.ca)} <span style={{ color: C.muted, fontSize: 11 }}>· {pct.toFixed(0)}%</span>
-                  </span>
+                <div key={v} style={{ background: C.surface, borderRadius: 8, padding: "10px 12px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 6, color: C.text, fontWeight: 600 }}>
+                      <span style={{ width: 10, height: 10, background: vColor(v), borderRadius: 2 }} />
+                      {vIcon(v)} {v}
+                    </span>
+                    <span style={{ fontSize: 11, color: C.muted }}>{pct.toFixed(0)}%</span>
+                  </div>
+                  <div style={{ display: "flex", gap: 14, fontSize: 12, flexWrap: "wrap" }}>
+                    <span style={{ color: C.muted }}>📋 <span style={{ color: C.text, fontWeight: 600 }}>{d.trips}</span> courses</span>
+                    <span style={{ color: C.muted }}>💰 <span style={{ color: C.gold, fontFamily: "monospace", fontWeight: 600 }}>{fmt(d.ca)}</span></span>
+                    {d.km > 0 && (
+                      <span style={{ color: C.muted }}>📏 <span style={{ color: C.teal, fontFamily: "monospace", fontWeight: 600 }}>{Math.round(d.km).toLocaleString("fr-FR")} km</span></span>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -2144,9 +2150,10 @@ export default function App() {
         // By gamme
         const v = r.vehicule || "N/A";
         if (v !== "N/A") {
-          if (!gammeAgg[v]) gammeAgg[v] = { ca: 0, trips: 0 };
+          if (!gammeAgg[v]) gammeAgg[v] = { ca: 0, trips: 0, km: 0 };
           gammeAgg[v].ca += total;
           gammeAgg[v].trips += 1;
+          if (r.distance_km != null) gammeAgg[v].km += Number(r.distance_km);
         }
       });
       (fRes.data || []).forEach(r => { if (byMonth[r.month_key]) byMonth[r.month_key].frais += Number(r.amount || 0); });
