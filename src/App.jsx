@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, memo } from "react";
-import { supabase } from "./supabase.js";
+import { supabase, db, registerToastHandler } from "./supabase.js";
 
 // ── Mode démonstration ────────────────────────────────────────────────────────
 const DEMO_MODE = new URLSearchParams(window.location.search).get("demo") === "1";
@@ -477,6 +477,10 @@ function SupplementsEditor({ supplements, onChange }) {
   );
 }
 
+// ── Échappement HTML (sécurité XSS) ───────────────────────────────────────────
+const HTML_ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+const esc = (s) => s == null ? "" : String(s).replace(/[&<>"']/g, c => HTML_ESCAPES[c]);
+
 // ── PDF ───────────────────────────────────────────────────────────────────────
 function generateRecapHTML({ year, month, courses, frais, savedCompanies, defaultChauffeur, profile }) {
   const mk = monthKey(year, month);
@@ -509,19 +513,19 @@ function generateRecapHTML({ year, month, courses, frais, savedCompanies, defaul
     const basePrice = Number(c.total || 0) - supSum;
     return `
     <tr>
-      <td>${fd(c.date)}</td><td>${c.heure || "—"}</td><td>${c.client || "—"}</td>
+      <td>${fd(c.date)}</td><td>${esc(c.heure) || "—"}</td><td>${esc(c.client) || "—"}</td>
       <td>${c.prestation === "mad" ? "MAD" : "Transfert"}</td>
-      <td>${c.vehicule || "—"}</td>
-      <td>${[c.prise, c.depose].filter(Boolean).join(" → ") || "—"}</td>
-      <td>${c.chauffeur || "—"}</td>
+      <td>${esc(c.vehicule) || "—"}</td>
+      <td>${[esc(c.prise), esc(c.depose)].filter(Boolean).join(" → ") || "—"}</td>
+      <td>${esc(c.chauffeur) || "—"}</td>
       <td class="amount">${fmtNum(basePrice)} €${supSum > 0 ? `<br><span style="color:#2DD4BF;font-size:10px">+${fmtNum(supSum)} € suppl.</span>` : ""}</td>
       <td class="amount"><b>${fmtNum(c.total)} €</b></td>
     </tr>
     ${sups.length > 0 ? `<tr style="background:#f0fafa"><td colspan="7" style="padding:4px 8px;font-size:10px;color:#888">
-      Suppléments : ${sups.map(s => `${s.type}${s.description ? " ("+s.description+")" : ""} : ${fmtNum(s.amount)} €`).join(" · ")}
+      Suppléments : ${sups.map(s => `${esc(s.type)}${s.description ? " ("+esc(s.description)+")" : ""} : ${fmtNum(s.amount)} €`).join(" · ")}
     </td><td colspan="2"></td></tr>` : ""}`;
   }).join("");
-  return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/><title>Récap ${label}</title>
+  return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/><title>Récap ${esc(label)}</title>
 <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a2e;font-size:12px;padding:20px}
 h1{font-size:24px;font-weight:800}h2{font-size:15px;font-weight:700;margin-bottom:4px}
 .hdr{display:flex;justify-content:space-between;margin-bottom:24px;padding-bottom:14px;border-bottom:3px solid #C8A45A}
@@ -541,7 +545,7 @@ tbody tr:nth-child(even){background:#f8f7f2}td{padding:8px;border-bottom:1px sol
   <button onclick="window.print()" style="background:#1a1a2e;color:#fff;border:none;border-radius:6px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer">🖨️ Imprimer / Enregistrer PDF</button>
   <button onclick="window.close()" style="background:#f0ead8;color:#1a1a2e;border:1px solid #C8A45A;border-radius:6px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer">← Fermer</button>
 </div>
-<div class="hdr"><div><h1>Récapitulatif mensuel</h1><p style="font-size:15px;font-weight:600;color:#C8A45A;margin-top:4px;text-transform:capitalize">${label}</p><p style="font-size:11px;color:#888;margin-top:2px">Généré le ${new Date().toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"})}</p></div></div>
+<div class="hdr"><div><h1>Récapitulatif mensuel</h1><p style="font-size:15px;font-weight:600;color:#C8A45A;margin-top:4px;text-transform:capitalize">${esc(label)}</p><p style="font-size:11px;color:#888;margin-top:2px">Généré le ${new Date().toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"})}</p></div></div>
 <div class="stats">
   <div class="sbox"><div class="slbl">CA Brut</div><div class="sval gold">${fmtNum(totalCA)} €</div></div>
   ${isCommission ? `
@@ -556,11 +560,11 @@ tbody tr:nth-child(even){background:#f8f7f2}td{padding:8px;border-bottom:1px sol
   <div class="sbox"><div class="slbl">Net</div><div class="sval ${totalCA-totalFrais-totalCC>=0?"green":"red"}">${fmtNum(totalCA-totalFrais-totalCC)} €</div></div>
   `}
 </div>
-${Object.keys(byVehicle).length>0?`<p class="sectitle">🚗 Par gamme</p><div class="sec"><table><thead><tr><th>Véhicule</th><th>Nb courses</th><th>CA Total</th></tr></thead><tbody>${Object.entries(byVehicle).map(([v,d])=>`<tr><td><b>${v}</b></td><td>${d.trips}</td><td class="amount">${fmtNum(d.ca)} €</td></tr>`).join("")}</tbody></table></div>`:""}
-${Object.keys(byCompany).length>0?`<p class="sectitle">🏢 À facturer par société</p>${Object.entries(byCompany).map(([name,trips])=>{const info=savedCompanies.find(c=>c.name.toLowerCase()===name.toLowerCase());const total=trips.reduce((s,c)=>s+Number(c.total||0),0);return`<div class="sec pb"><div class="sechdr"><div><h2>${name}</h2>${info?.adresse?`<p class="info">📍 ${info.adresse}</p>`:""}${info?.email?`<p class="info">✉️ ${info.email}</p>`:""}${info?.siren?`<p class="info">SIREN : ${info.siren}</p>`:""}${info?.tva?`<p class="info">TVA : ${info.tva}</p>`:""}</div><div class="badge">${fmtNum(total)} €</div></div><table><thead><tr><th>Date</th><th>Heure</th><th>Client</th><th>Prestation</th><th>Véhicule</th><th>Trajet</th><th>Chauffeur</th><th>Base</th><th>Total TTC</th></tr></thead><tbody>${tripRows(trips)}</tbody><tfoot><tr><td colspan="8" style="text-align:right;font-weight:700">Total</td><td class="amount tr">${fmtNum(total)} €</td></tr></tfoot></table></div>`;}).join("")}`:""}
+${Object.keys(byVehicle).length>0?`<p class="sectitle">🚗 Par gamme</p><div class="sec"><table><thead><tr><th>Véhicule</th><th>Nb courses</th><th>CA Total</th></tr></thead><tbody>${Object.entries(byVehicle).map(([v,d])=>`<tr><td><b>${esc(v)}</b></td><td>${d.trips}</td><td class="amount">${fmtNum(d.ca)} €</td></tr>`).join("")}</tbody></table></div>`:""}
+${Object.keys(byCompany).length>0?`<p class="sectitle">🏢 À facturer par société</p>${Object.entries(byCompany).map(([name,trips])=>{const info=savedCompanies.find(c=>c.name.toLowerCase()===name.toLowerCase());const total=trips.reduce((s,c)=>s+Number(c.total||0),0);return`<div class="sec pb"><div class="sechdr"><div><h2>${esc(name)}</h2>${info?.adresse?`<p class="info">📍 ${esc(info.adresse)}</p>`:""}${info?.email?`<p class="info">✉️ ${esc(info.email)}</p>`:""}${info?.siren?`<p class="info">SIREN : ${esc(info.siren)}</p>`:""}${info?.tva?`<p class="info">TVA : ${esc(info.tva)}</p>`:""}</div><div class="badge">${fmtNum(total)} €</div></div><table><thead><tr><th>Date</th><th>Heure</th><th>Client</th><th>Prestation</th><th>Véhicule</th><th>Trajet</th><th>Chauffeur</th><th>Base</th><th>Total TTC</th></tr></thead><tbody>${tripRows(trips)}</tbody><tfoot><tr><td colspan="8" style="text-align:right;font-weight:700">Total</td><td class="amount tr">${fmtNum(total)} €</td></tr></tfoot></table></div>`;}).join("")}`:""}
 ${privateTrips.length>0?`<p class="sectitle">💵 Courses privées</p><div class="sec"><div class="sechdr"><h2>Encaissement direct</h2><div class="badge green">${fmtNum(privateTrips.reduce((s,c)=>s+Number(c.total||0),0))} €</div></div><table><thead><tr><th>Date</th><th>Heure</th><th>Client</th><th>Prestation</th><th>Véhicule</th><th>Trajet</th><th>Chauffeur</th><th>Base</th><th>Total TTC</th></tr></thead><tbody>${tripRows(privateTrips)}</tbody></table></div>`:""}
-${Object.keys(byChauffeur).length>0?`<p class="sectitle">🧑‍✈️ Récapitulatif chauffeurs</p>${Object.entries(byChauffeur).map(([name,d])=>`<div class="sec"><div class="sechdr"><div><h2>${name}</h2><p class="info">${d.trips.length} course${d.trips.length>1?"s":""} · CA : ${fmtNum(d.ca)} €</p></div><div class="badge orange">À payer : ${fmtNum(d.cost)} €</div></div><table><thead><tr><th>Date</th><th>Heure</th><th>Client</th><th>Prestation</th><th>Véhicule</th><th>Trajet</th><th>Tarif</th><th>CA</th><th>À payer</th></tr></thead><tbody>${d.trips.map(c=>`<tr><td>${fd(c.date)}</td><td>${c.heure||"—"}</td><td>${c.client||"—"}</td><td>${c.prestation==="mad"?"MAD":"Transfert"}</td><td>${c.vehicule||"—"}</td><td>${[c.prise,c.depose].filter(Boolean).join(" → ")||"—"}</td><td>${c.prestation==="mad"&&c.chauffeurHourlyRate?`${fmtNum(c.chauffeurHourlyRate)}€/h × ${c.nbHeures}h`:"Forfait"}</td><td class="amount">${fmtNum(c.total)} €</td><td class="amount" style="color:#c05a00;font-weight:700">${fmtNum(c.chauffeurCost)} €</td></tr>`).join("")}</tbody><tfoot><tr><td colspan="7" style="text-align:right;font-weight:700">Total à payer à ${name}</td><td class="amount tr">${fmtNum(d.ca)} €</td><td class="amount" style="color:#c05a00;font-weight:800">${fmtNum(d.cost)} €</td></tr></tfoot></table></div>`).join("")}`:""}
-${mf.length>0?`<p class="sectitle">💸 Frais</p><div class="sec"><table><thead><tr><th>Date</th><th>Catégorie</th><th>Détail</th><th>Montant</th></tr></thead><tbody>${mf.map(f=>`<tr><td>${fd(f.date)}</td><td>${f.category}</td><td>${f.notes||"—"}</td><td class="amount">${fmtNum(f.amount)} €</td></tr>`).join("")}</tbody><tfoot><tr><td colspan="3" style="text-align:right;font-weight:700">Total</td><td class="amount tr">${fmtNum(totalFrais)} €</td></tr></tfoot></table></div>`:""}
+${Object.keys(byChauffeur).length>0?`<p class="sectitle">🧑‍✈️ Récapitulatif chauffeurs</p>${Object.entries(byChauffeur).map(([name,d])=>`<div class="sec"><div class="sechdr"><div><h2>${esc(name)}</h2><p class="info">${d.trips.length} course${d.trips.length>1?"s":""} · CA : ${fmtNum(d.ca)} €</p></div><div class="badge orange">À payer : ${fmtNum(d.cost)} €</div></div><table><thead><tr><th>Date</th><th>Heure</th><th>Client</th><th>Prestation</th><th>Véhicule</th><th>Trajet</th><th>Tarif</th><th>CA</th><th>À payer</th></tr></thead><tbody>${d.trips.map(c=>`<tr><td>${fd(c.date)}</td><td>${esc(c.heure)||"—"}</td><td>${esc(c.client)||"—"}</td><td>${c.prestation==="mad"?"MAD":"Transfert"}</td><td>${esc(c.vehicule)||"—"}</td><td>${[esc(c.prise),esc(c.depose)].filter(Boolean).join(" → ")||"—"}</td><td>${c.prestation==="mad"&&c.chauffeurHourlyRate?`${fmtNum(c.chauffeurHourlyRate)}€/h × ${c.nbHeures}h`:"Forfait"}</td><td class="amount">${fmtNum(c.total)} €</td><td class="amount" style="color:#c05a00;font-weight:700">${fmtNum(c.chauffeurCost)} €</td></tr>`).join("")}</tbody><tfoot><tr><td colspan="7" style="text-align:right;font-weight:700">Total à payer à ${esc(name)}</td><td class="amount tr">${fmtNum(d.ca)} €</td><td class="amount" style="color:#c05a00;font-weight:800">${fmtNum(d.cost)} €</td></tr></tfoot></table></div>`).join("")}`:""}
+${mf.length>0?`<p class="sectitle">💸 Frais</p><div class="sec"><table><thead><tr><th>Date</th><th>Catégorie</th><th>Détail</th><th>Montant</th></tr></thead><tbody>${mf.map(f=>`<tr><td>${fd(f.date)}</td><td>${esc(f.category)}</td><td>${esc(f.notes)||"—"}</td><td class="amount">${fmtNum(f.amount)} €</td></tr>`).join("")}</tbody><tfoot><tr><td colspan="3" style="text-align:right;font-weight:700">Total</td><td class="amount tr">${fmtNum(totalFrais)} €</td></tr></tfoot></table></div>`:""}
 </body></html>`;
 }
 
@@ -1341,7 +1345,8 @@ function KmBackfillModal({ year, profile, onClose, onDone }) {
       if (abortRef.current) break;
       const km = await computeDrivingDistance(r.prise, r.depose);
       if (km != null) {
-        await supabase.from("courses").update({ distance_km: km }).eq("id", r.id);
+        const upd = await db("backfill_km", () => supabase.from("courses").update({ distance_km: km }).eq("id", r.id));
+        if (!upd.ok) { failed++; setErrors(failed); }
       } else {
         failed++;
         setErrors(failed);
@@ -1600,6 +1605,46 @@ function YearCharts({ year, annualData, annualDataN1, topClients, byGamme }) {
   );
 }
 
+// ── Toast (notifications éphémères) ────────────────────────────────────────────
+function Toast({ toasts, onDismiss }) {
+  if (!toasts || toasts.length === 0) return null;
+  return (
+    <div style={{ position: "fixed", top: 16, left: 0, right: 0, zIndex: 9999, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, pointerEvents: "none", padding: "0 16px" }}>
+      {toasts.map(t => {
+        const color = t.type === "error" ? C.red : t.type === "success" ? C.green : C.gold;
+        return (
+          <div
+            key={t.id}
+            onClick={() => onDismiss(t.id)}
+            className="fade-up"
+            style={{
+              pointerEvents: "auto",
+              maxWidth: 460, width: "100%",
+              background: `${color}15`,
+              border: `1px solid ${color}66`,
+              borderLeft: `4px solid ${color}`,
+              color: C.text,
+              borderRadius: 12,
+              padding: "12px 16px",
+              fontSize: 13,
+              fontWeight: 500,
+              boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+              backdropFilter: "blur(8px)",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <span style={{ flex: 1 }}>{t.message}</span>
+            <span style={{ fontSize: 11, color: C.muted, opacity: 0.6 }}>✕</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Écran de verrouillage PIN ─────────────────────────────────────────────────
 const PIN_CODE = "93270";
 function PinLock({ onUnlock }) {
@@ -1728,6 +1773,14 @@ export default function App() {
   const [annualByGamme, setAnnualByGamme] = useState(null);
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   const [showKmBackfill, setShowKmBackfill] = useState(false);
+  const [toasts, setToasts] = useState([]);
+  const pushToast = (t) => {
+    const id = uid();
+    setToasts(prev => [...prev, { ...t, id }]);
+    setTimeout(() => setToasts(prev => prev.filter(x => x.id !== id)), 5000);
+  };
+  const dismissToast = (id) => setToasts(prev => prev.filter(x => x.id !== id));
+  useEffect(() => { registerToastHandler(pushToast); }, []);
 
   const mk = monthKey(year, month);
   const savedChauffeurs = chauffeurObjects.map(c => c.name);
@@ -1909,7 +1962,10 @@ export default function App() {
       const km = await computeDrivingDistance(c.prise, c.depose);
       if (km != null) enriched = { ...c, distanceKm: km };
     }
-    if (!DEMO_MODE) await supabase.from("courses").upsert({ ...courseToDb(enriched, mk), profile });
+    if (!DEMO_MODE) {
+      const r = await db("save_course", () => supabase.from("courses").upsert({ ...courseToDb(enriched, mk), profile }));
+      if (!r.ok) return; // toast + log déjà émis ; on garde la modale ouverte
+    }
     setCourses(prev => {
       const list = [...prev];
       const idx = list.findIndex(x => x.id === enriched.id);
@@ -1918,10 +1974,14 @@ export default function App() {
       return list;
     });
     setShowCourseModal(false); setEditCourse(null);
+    pushToast({ type: "success", message: "✓ Course enregistrée" });
   };
   const deleteCourse = async (id) => {
     if (!window.confirm("Supprimer ?")) return;
-    if (!DEMO_MODE) await supabase.from("courses").delete().eq("id", id);
+    if (!DEMO_MODE) {
+      const r = await db("delete_course", () => supabase.from("courses").delete().eq("id", id));
+      if (!r.ok) return;
+    }
     setCourses(prev => prev.filter(c => c.id !== id));
   };
   const duplicateCourse = (c) => {
@@ -1945,7 +2005,10 @@ export default function App() {
 
   // ── Handlers Frais ──────────────────────────────────────────────────────────
   const saveFrais = async (f) => {
-    if (!DEMO_MODE) await supabase.from("frais").upsert({ ...fraisToDb(f, mk), profile });
+    if (!DEMO_MODE) {
+      const r = await db("save_frais", () => supabase.from("frais").upsert({ ...fraisToDb(f, mk), profile }));
+      if (!r.ok) return;
+    }
     setFrais(prev => {
       const list = [...prev];
       const idx = list.findIndex(x => x.id === f.id);
@@ -1957,7 +2020,10 @@ export default function App() {
   };
   const deleteFrais = async (id) => {
     if (!window.confirm("Supprimer ?")) return;
-    if (!DEMO_MODE) await supabase.from("frais").delete().eq("id", id);
+    if (!DEMO_MODE) {
+      const r = await db("delete_frais", () => supabase.from("frais").delete().eq("id", id));
+      if (!r.ok) return;
+    }
     setFrais(prev => prev.filter(f => f.id !== id));
   };
 
@@ -1966,25 +2032,37 @@ export default function App() {
     if (typeof nameOrObj === "string") {
       if (!savedCompanies.some(c => c.name.toLowerCase() === nameOrObj.toLowerCase())) {
         const company = { ...defCompany(nameOrObj), profile };
-        if (!DEMO_MODE) await supabase.from("companies").upsert(company);
+        if (!DEMO_MODE) {
+          const r = await db("save_company_quick", () => supabase.from("companies").upsert(company));
+          if (!r.ok) return;
+        }
         setSavedCompanies(prev => [...prev, company]);
       }
     } else {
-      if (!DEMO_MODE) await supabase.from("companies").upsert({ ...nameOrObj, profile });
+      if (!DEMO_MODE) {
+        const r = await db("save_company", () => supabase.from("companies").upsert({ ...nameOrObj, profile }));
+        if (!r.ok) return;
+      }
       setSavedCompanies(prev => { const idx = prev.findIndex(c => c.id === nameOrObj.id); if (idx >= 0) { const l = [...prev]; l[idx] = nameOrObj; return l; } return [...prev, nameOrObj]; });
     }
     setEditCompany(null);
   };
   const deleteCompany = async (id) => {
     if (!window.confirm("Supprimer ?")) return;
-    if (!DEMO_MODE) await supabase.from("companies").delete().eq("id", id);
+    if (!DEMO_MODE) {
+      const r = await db("delete_company", () => supabase.from("companies").delete().eq("id", id));
+      if (!r.ok) return;
+    }
     setSavedCompanies(prev => prev.filter(c => c.id !== id));
   };
 
   // ── Handlers Clients directs ─────────────────────────────────────────────────
   const handleSaveClient = async (clientObj) => {
     const toSave = { ...clientObj, profile };
-    if (!DEMO_MODE) await supabase.from("clients").upsert(toSave);
+    if (!DEMO_MODE) {
+      const r = await db("save_client", () => supabase.from("clients").upsert(toSave));
+      if (!r.ok) return;
+    }
     setSavedClients(prev => {
       const idx = prev.findIndex(c => c.id === clientObj.id);
       if (idx >= 0) { const l = [...prev]; l[idx] = toSave; return l; }
@@ -1994,7 +2072,10 @@ export default function App() {
   };
   const deleteClient = async (id) => {
     if (!window.confirm("Supprimer ce client ?")) return;
-    if (!DEMO_MODE) await supabase.from("clients").delete().eq("id", id);
+    if (!DEMO_MODE) {
+      const r = await db("delete_client", () => supabase.from("clients").delete().eq("id", id));
+      if (!r.ok) return;
+    }
     setSavedClients(prev => prev.filter(c => c.id !== id));
   };
   const toggleClientDirectPaid = (clientName) => {
@@ -2030,7 +2111,10 @@ export default function App() {
     if (!chauffeurObjects.some(c => c.name.toLowerCase() === name.toLowerCase())) {
       const isFirst = chauffeurObjects.length === 0;
       const newCh = { id: uid(), name, is_default: isFirst, profile, type: "sous_traitant" };
-      if (!DEMO_MODE) await supabase.from("chauffeurs").upsert(newCh);
+      if (!DEMO_MODE) {
+        const r = await db("save_chauffeur", () => supabase.from("chauffeurs").upsert(newCh));
+        if (!r.ok) return;
+      }
       setChauffeurObjects(prev => [...prev, newCh]);
       if (isFirst) setDefaultChauffeur(name);
     }
@@ -2039,48 +2123,73 @@ export default function App() {
     const ch = chauffeurObjects.find(c => c.name === name);
     if (!ch) return;
     const updated = { ...ch, type };
-    if (!DEMO_MODE) await supabase.from("chauffeurs").upsert({ ...updated, profile });
+    if (!DEMO_MODE) {
+      const r = await db("update_chauffeur_type", () => supabase.from("chauffeurs").upsert({ ...updated, profile }));
+      if (!r.ok) return;
+    }
     setChauffeurObjects(prev => prev.map(c => c.name === name ? updated : c));
   };
   const handleDeleteChauffeur = async (name) => {
     if (!window.confirm(`Supprimer ${name} ?`)) return;
     const ch = chauffeurObjects.find(c => c.name === name);
-    if (ch && !DEMO_MODE) { await supabase.from("chauffeurs").delete().eq("id", ch.id); }
+    if (ch && !DEMO_MODE) {
+      const r = await db("delete_chauffeur", () => supabase.from("chauffeurs").delete().eq("id", ch.id));
+      if (!r.ok) return;
+    }
     setChauffeurObjects(prev => prev.filter(c => c.name !== name));
     if (defaultChauffeur === name) setDefaultChauffeur("");
   };
   const handleSetDefault = async (name) => {
     const updates = chauffeurObjects.map(c => ({ ...c, is_default: c.name === name, profile }));
-    if (!DEMO_MODE) await supabase.from("chauffeurs").upsert(updates);
+    if (!DEMO_MODE) {
+      const r = await db("set_default_chauffeur", () => supabase.from("chauffeurs").upsert(updates));
+      if (!r.ok) return;
+    }
     setChauffeurObjects(updates);
     setDefaultChauffeur(name);
   };
 
   // ── Frais récurrents ────────────────────────────────────────────────────────
-  const applyRecurringToMonth = (targetMk, targetYear, targetMonth, recList) => {
+  const applyRecurringToMonth = async (targetMk, targetYear, targetMonth, recList) => {
     const active = recList.filter(r => r.active && r.category && r.amount);
     if (active.length === 0) return;
-    setFrais(prev => {
-      const appliedIds = new Set(prev.filter(f => f.recurringId).map(f => f.recurringId));
-      const toAdd = active.filter(r => !appliedIds.has(r.id)).map(r => ({
-        id: uid(), recurringId: r.id,
-        date: `${targetYear}-${String(targetMonth + 1).padStart(2, "0")}-${String(Math.min(r.day, 28)).padStart(2, "0")}`,
-        category: r.category, amount: r.amount, notes: r.notes, isRecurring: true,
-      }));
-      if (toAdd.length === 0) return prev;
-      if (!DEMO_MODE) toAdd.forEach(f => supabase.from("frais").upsert({ ...fraisToDb(f, targetMk), profile }).then(() => {}));
-      return [...prev, ...toAdd].sort((a, b) => a.date.localeCompare(b.date));
-    });
+    // Calculer ce qu'on doit ajouter (sans toucher au state encore)
+    const currentFrais = frais;
+    const appliedIds = new Set(currentFrais.filter(f => f.recurringId).map(f => f.recurringId));
+    const toAdd = active.filter(r => !appliedIds.has(r.id)).map(r => ({
+      id: uid(), recurringId: r.id,
+      date: `${targetYear}-${String(targetMonth + 1).padStart(2, "0")}-${String(Math.min(r.day, 28)).padStart(2, "0")}`,
+      category: r.category, amount: r.amount, notes: r.notes, isRecurring: true,
+    }));
+    if (toAdd.length === 0) return;
+    // Persister AVANT de mettre à jour le state (await tous les inserts, check erreurs)
+    if (!DEMO_MODE) {
+      const results = await Promise.all(
+        toAdd.map(f => db("apply_recurring_frais", () => supabase.from("frais").upsert({ ...fraisToDb(f, targetMk), profile })))
+      );
+      const succeeded = toAdd.filter((_, i) => results[i].ok);
+      if (succeeded.length === 0) return;
+      setFrais(prev => [...prev, ...succeeded].sort((a, b) => a.date.localeCompare(b.date)));
+    } else {
+      setFrais(prev => [...prev, ...toAdd].sort((a, b) => a.date.localeCompare(b.date)));
+    }
   };
 
   const handleSaveRecurring = async (list) => {
     if (!DEMO_MODE) {
-      const { data: existing } = await supabase.from("recurring_frais").select("id").eq("profile", profile);
-      const existingIds = (existing || []).map(r => r.id);
+      const existingRes = await db("recurring_select", () => supabase.from("recurring_frais").select("id").eq("profile", profile));
+      if (!existingRes.ok) return;
+      const existingIds = (existingRes.data || []).map(r => r.id);
       const newIds = list.map(r => r.id);
       const toDelete = existingIds.filter(id => !newIds.includes(id));
-      if (toDelete.length > 0) await supabase.from("recurring_frais").delete().in("id", toDelete);
-      if (list.length > 0) await supabase.from("recurring_frais").upsert(list.map(r => ({ ...recurringToDb(r), profile })));
+      if (toDelete.length > 0) {
+        const dr = await db("recurring_delete", () => supabase.from("recurring_frais").delete().in("id", toDelete));
+        if (!dr.ok) return;
+      }
+      if (list.length > 0) {
+        const ur = await db("recurring_upsert", () => supabase.from("recurring_frais").upsert(list.map(r => ({ ...recurringToDb(r), profile }))));
+        if (!ur.ok) return;
+      }
     }
     setRecurringFrais(list);
     applyRecurringToMonth(mk, year, month, list);
@@ -2174,7 +2283,10 @@ export default function App() {
   // ── Statuts factures ────────────────────────────────────────────────────────
   const setInvoiceStatus = async (companyName, status) => {
     const key = `${mk}:${companyName}`;
-    if (!DEMO_MODE) await supabase.from("invoice_statuses").upsert({ id: key, status, updated_at: new Date().toISOString(), profile });
+    if (!DEMO_MODE) {
+      const r = await db("invoice_status", () => supabase.from("invoice_statuses").upsert({ id: key, status, updated_at: new Date().toISOString(), profile }));
+      if (!r.ok) return;
+    }
     setInvoiceStatuses(prev => ({ ...prev, [key]: status }));
   };
   const getInvoiceStatus = (companyName) => invoiceStatuses[`${mk}:${companyName}`] || "a_envoyer";
@@ -2199,6 +2311,7 @@ export default function App() {
 
   return (
     <div style={{ background: C.bg, minHeight: "100dvh", fontFamily: FONT.body, color: C.text, maxWidth: 480, margin: "0 auto" }}>
+      <Toast toasts={toasts} onDismiss={dismissToast} />
       {DEMO_MODE && (
         <div style={{ background: `linear-gradient(90deg,${C.orange},#F5C23C)`, padding: "8px 16px", display: "flex", alignItems: "center", gap: 8, position: "sticky", top: 0, zIndex: 20 }}>
           <span style={{ fontSize: 16 }}>👁</span>

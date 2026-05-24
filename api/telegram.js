@@ -177,6 +177,16 @@ async function insererCourse(parsed, prix) {
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(200).json({ ok: true });
 
+  // Vérification de la signature secrète Telegram (anti-spoofing du webhook)
+  // Si TELEGRAM_WEBHOOK_SECRET est défini, on exige le header correspondant
+  const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+  if (expectedSecret) {
+    const receivedSecret = req.headers["x-telegram-bot-api-secret-token"];
+    if (receivedSecret !== expectedSecret) {
+      return res.status(401).json({ ok: false, error: "invalid secret" });
+    }
+  }
+
   const { message } = req.body || {};
   if (!message) return res.status(200).json({ ok: true });
 

@@ -3,3 +3,7 @@ dist
 .env.local
 .env
 .vercel/
+
+.env*.local
+skills-lock.json
+.agents/
