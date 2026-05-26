@@ -467,7 +467,7 @@ function SupplementsEditor({ supplements, onChange }) {
                 {SUPPLEMENT_TYPES.map(t => <option key={t}>{t}</option>)}
               </select>
             </div>
-            <input type="number" value={s.amount} onChange={e => updateSup(s.id, "amount", e.target.value)} placeholder="€" style={{ ...iBase, width: 80, textAlign: "right" }} />
+            <input type="text" inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" value={s.amount} onChange={e => updateSup(s.id, "amount", e.target.value)} placeholder="€" style={{ ...iBase, width: 80, textAlign: "right" }} />
           </div>
           <input value={s.description} onChange={e => updateSup(s.id, "description", e.target.value)} placeholder="Détail (ex: 45 min d'attente CDG T2…)" style={{ ...iBase, fontSize: 13 }} />
         </div>
@@ -599,7 +599,7 @@ function TarifsModal({ tarifs, onSave, tarifsSecInit, onSaveSec, onClose }) {
               <React.Fragment key={v}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: vColor(v) }}>{vIcon(v)} {v.replace("Classe ","")}</div>
                 {["aeroport","paris","mad"].map(k => (
-                  <input key={k} type="number" value={t[v]?.[k] ?? ""} onChange={e => set(v, k, e.target.value)} style={{ ...iBase, textAlign: "center" }} />
+                  <input key={k} type="text" inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" value={t[v]?.[k] ?? ""} onChange={e => set(v, k, e.target.value)} style={{ ...iBase, textAlign: "center" }} />
                 ))}
               </React.Fragment>
             ))}
@@ -612,7 +612,7 @@ function TarifsModal({ tarifs, onSave, tarifsSecInit, onSaveSec, onClose }) {
           {SEC_ROWS.map(row => (
             <div key={row.key} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
               <div style={{ flex: 1, fontSize: 13, color: C.muted }}>{row.label}</div>
-              <input type="number" value={s[row.key] ?? ""} onChange={e => setSec(row.key, e.target.value)} placeholder="—" style={{ ...iBase, width: 90, textAlign: "right" }} />
+              <input type="text" inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" value={s[row.key] ?? ""} onChange={e => setSec(row.key, e.target.value)} placeholder="—" style={{ ...iBase, width: 90, textAlign: "right" }} />
               <span style={{ fontSize: 12, color: C.muted, minWidth: 20 }}>{row.key === "mad" ? "€/h" : "€"}</span>
             </div>
           ))}
@@ -822,13 +822,13 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
         <AddressInput label="Dépose" value={f.depose} onChange={v => set("depose", v)} placeholder="Adresse ou lieu" />
 
         {f.prestation === "transfert" ? (
-          <Input label="Prix de base TTC (€)" type="number" value={f.prixTTC} onChange={e => set("prixTTC", e.target.value)} placeholder="0.00" />
+          <Input label="Prix de base TTC (€)" type="text" inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" value={f.prixTTC} onChange={e => set("prixTTC", e.target.value)} placeholder="0.00" />
         ) : (
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ fontSize: 12, color: C.purple, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Prix mise à disposition</div>
             <div style={{ display: "flex", gap: 10 }}>
-              <Input label="Taux horaire TTC (€/h)" type="number" value={f.tauxHoraire} onChange={e => set("tauxHoraire", e.target.value)} placeholder="ex: 60" style={{ flex: 1 }} />
-              <Input label="Nb d'heures" type="number" step="0.5" value={f.nbHeures} onChange={e => set("nbHeures", e.target.value)} placeholder="ex: 4" style={{ flex: 1 }} />
+              <Input label="Taux horaire TTC (€/h)" type="text" inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" value={f.tauxHoraire} onChange={e => set("tauxHoraire", e.target.value)} placeholder="ex: 60" style={{ flex: 1 }} />
+              <Input label="Nb d'heures" type="text" inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" value={f.nbHeures} onChange={e => set("nbHeures", e.target.value)} placeholder="ex: 4" style={{ flex: 1 }} />
             </div>
             {f.tauxHoraire && f.nbHeures && (
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, paddingTop: 8, borderTop: `1px solid ${C.border}` }}>
@@ -879,7 +879,7 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
                   <Lbl>Forfait transfert (€)</Lbl>
                   {Number(f.prixTTC) > 0 && <span style={{ fontSize: 11, color: C.muted }}>Prix client : {fmt(f.prixTTC)}</span>}
                 </div>
-                <input type="number" value={f.chauffeurFlatRate} onChange={e => set("chauffeurFlatRate", e.target.value)} placeholder="ex: 150" style={{ ...iBase }} />
+                <input type="text" inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" value={f.chauffeurFlatRate} onChange={e => set("chauffeurFlatRate", e.target.value)} placeholder="ex: 150" style={{ ...iBase }} />
                 {Number(f.chauffeurFlatRate) > 0 && Number(f.total) > 0 && (
                   <div style={{ display: "flex", gap: 8 }}>
                     <div style={{ flex: 1, background: C.surface, borderRadius: 8, padding: "8px 12px" }}><div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: 1 }}>À payer</div><div style={{ fontSize: 16, fontWeight: 700, color: C.orange, fontFamily: "monospace" }}>{fmt(f.chauffeurFlatRate)}</div></div>
@@ -893,7 +893,7 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
                   <Lbl>Taux horaire chauffeur (€/h)</Lbl>
                   {f.tauxHoraire && <span style={{ fontSize: 11, color: C.muted }}>Client : {f.tauxHoraire}€/h</span>}
                 </div>
-                <input type="number" value={f.chauffeurHourlyRate} onChange={e => set("chauffeurHourlyRate", e.target.value)} placeholder="ex: 35" style={{ ...iBase }} />
+                <input type="text" inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" value={f.chauffeurHourlyRate} onChange={e => set("chauffeurHourlyRate", e.target.value)} placeholder="ex: 35" style={{ ...iBase }} />
                 {Number(f.chauffeurHourlyRate) > 0 && Number(f.nbHeures) > 0 && (
                   <div style={{ background: C.surface, borderRadius: 8, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 6 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}><span style={{ color: C.muted }}>{f.chauffeurHourlyRate}€/h × {f.nbHeures}h</span><span style={{ fontWeight: 700, color: C.orange, fontFamily: "monospace" }}>{fmt(Number(f.chauffeurHourlyRate) * Number(f.nbHeures))}</span></div>
@@ -907,7 +907,7 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
           </div>
         )}
 
-        <Input label="Pourboire (€)" type="number" value={f.tips} onChange={e => set("tips", e.target.value)} placeholder="0" />
+        <Input label="Pourboire (€)" type="text" inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" value={f.tips} onChange={e => set("tips", e.target.value)} placeholder="0" />
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <Lbl>Notes</Lbl>
@@ -946,7 +946,7 @@ function FraisModal({ initial, onSave, onClose }) {
             {FRAIS_CATS.map(c => <option key={c}>{c}</option>)}
           </select>
         </div>
-        <Input label="Montant (€)" type="number" value={f.amount} onChange={e => set("amount", e.target.value)} placeholder="0.00" />
+        <Input label="Montant (€)" type="text" inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" value={f.amount} onChange={e => set("amount", e.target.value)} placeholder="0.00" />
         <Textarea label="Notes" value={f.notes} onChange={e => set("notes", e.target.value)} placeholder="Détail…" />
         <Btn onClick={() => f.category && f.amount && onSave(f)}>{initial ? "Enregistrer" : "Ajouter"}</Btn>
       </div>
@@ -983,8 +983,8 @@ function RecurringFraisModal({ recurringFrais, onSave, onClose }) {
               </select>
             </div>
             <div style={{ display: "flex", gap: 10 }}>
-              <div style={{ flex: 2, display: "flex", flexDirection: "column", gap: 4 }}><Lbl>Montant (€)</Lbl><input type="number" value={r.amount} onChange={e => upd(r.id, "amount", e.target.value)} placeholder="0.00" style={{ ...iBase }} /></div>
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}><Lbl>Jour du mois</Lbl><input type="number" min="1" max="28" value={r.day} onChange={e => upd(r.id, "day", Number(e.target.value))} style={{ ...iBase }} /></div>
+              <div style={{ flex: 2, display: "flex", flexDirection: "column", gap: 4 }}><Lbl>Montant (€)</Lbl><input type="text" inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" value={r.amount} onChange={e => upd(r.id, "amount", e.target.value)} placeholder="0.00" style={{ ...iBase }} /></div>
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}><Lbl>Jour du mois</Lbl><input type="text" inputMode="numeric" pattern="[0-9]*" value={r.day} onChange={e => { const n = Math.max(1, Math.min(28, Number(e.target.value) || 1)); upd(r.id, "day", n); }} maxLength={2} style={{ ...iBase }} /></div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><Lbl>Libellé / notes</Lbl><input value={r.notes} onChange={e => upd(r.id, "notes", e.target.value)} placeholder="ex: Abonnement SFR Pro" style={{ ...iBase }} /></div>
           </div>
@@ -1037,7 +1037,7 @@ function CompanyInfoModal({ initial, onSave, onClose }) {
             {TARIF_TYPES.map(t => (
               <div key={t.key} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                 <div style={{ flex: 1, fontSize: 13, color: C.muted }}>{t.label}</div>
-                <input type="number" value={f.prices[v]?.[t.key] || ""} onChange={e => setPrice(v, t.key, e.target.value)} placeholder="—" style={{ ...iBase, width: 90, textAlign: "right" }} />
+                <input type="text" inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" value={f.prices[v]?.[t.key] || ""} onChange={e => setPrice(v, t.key, e.target.value)} placeholder="—" style={{ ...iBase, width: 90, textAlign: "right" }} />
                 <span style={{ fontSize: 12, color: C.muted, minWidth: 20 }}>{t.key === "mad" ? "€/h" : "€"}</span>
               </div>
             ))}
@@ -1135,7 +1135,7 @@ function ClientModal({ initial, onSave, onClose }) {
             {TARIF_TYPES.map(t => (
               <div key={t.key} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                 <div style={{ flex: 1, fontSize: 13, color: C.muted }}>{t.label}</div>
-                <input type="number" value={f.prices[v]?.[t.key] || ""} onChange={e => setPrice(v, t.key, e.target.value)} placeholder="—" style={{ ...iBase, width: 90, textAlign: "right" }} />
+                <input type="text" inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" value={f.prices[v]?.[t.key] || ""} onChange={e => setPrice(v, t.key, e.target.value)} placeholder="—" style={{ ...iBase, width: 90, textAlign: "right" }} />
                 <span style={{ fontSize: 12, color: C.muted, minWidth: 20 }}>{t.key === "mad" ? "€/h" : "€"}</span>
               </div>
             ))}
@@ -2338,7 +2338,7 @@ export default function App() {
           <div>
             <div style={{ fontSize: 10, color: C.goldDim, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 2 }}>Course Privée</div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ fontFamily: FONT.display, fontSize: 30, fontWeight: 900, color: C.text, letterSpacing: "-0.01em", lineHeight: 1 }}>Mes <span style={{ fontStyle: "italic", fontWeight: 700, color: C.gold }}>Comptes</span></div>
+              <div style={{ fontFamily: FONT.display, fontSize: 22, fontWeight: 900, color: C.text, letterSpacing: "-0.01em", lineHeight: 1.1, whiteSpace: "nowrap" }}>Mes <span style={{ fontStyle: "italic", fontWeight: 700, color: C.gold }}>Comptes</span></div>
               {defaultChauffeur && <button onClick={() => setShowChauffeurSettings(true)} style={{ background: C.goldGlow, border: `1px solid ${C.gold}40`, borderRadius: 20, padding: "3px 10px", fontSize: 12, color: C.gold, fontWeight: 600, cursor: "pointer", transition: "all 0.18s" }}>🧑‍✈️ {defaultChauffeur}</button>}
             </div>
             <button onClick={() => { localStorage.removeItem("cp_profile"); setProfile(null); }} style={{ background: `${profileInfo?.color || C.blue}12`, border: `1px solid ${profileInfo?.color || C.blue}35`, borderRadius: 20, padding: "2px 10px", fontSize: 11, color: profileInfo?.color || C.blue, fontWeight: 600, cursor: "pointer", marginTop: 5 }}>
@@ -2503,7 +2503,7 @@ export default function App() {
                       </div>
                       {showObjectifInput && (
                         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-                          <input type="number" value={objectifInputVal} onChange={e => setObjectifInputVal(e.target.value)} placeholder="ex: 5000" style={{ ...iBase, flex: 1 }} />
+                          <input type="text" inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" value={objectifInputVal} onChange={e => setObjectifInputVal(e.target.value)} placeholder="ex: 5000" style={{ ...iBase, flex: 1 }} />
                           <Btn small onClick={() => saveObjectif(objectifInputVal)}>OK</Btn>
                         </div>
                       )}
