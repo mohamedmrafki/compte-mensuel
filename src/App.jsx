@@ -137,7 +137,7 @@ function recurringFromDb(r) {
 
 // ── Composants UI (identiques à l'original) ───────────────────────────────────
 const Pill = memo(({ label, active, onClick }) => (
-  <button onClick={onClick} style={{ padding: "6px 16px", borderRadius: 100, border: active ? `1px solid ${C.gold}55` : `1px solid transparent`, cursor: "pointer", fontSize: 13, fontWeight: active ? 700 : 600, background: active ? C.goldGlow : C.surface, color: active ? C.gold : C.muted, whiteSpace: "nowrap", transition: "all 0.18s ease", boxShadow: active ? `0 0 14px ${C.gold}20` : "none", fontFamily: active ? FONT.display : FONT.body, fontStyle: active ? "italic" : "normal", letterSpacing: "normal", textTransform: "none" }}>{label}</button>
+  <button onClick={onClick} data-tab-active={active ? "true" : undefined} style={{ padding: "6px 16px", borderRadius: 100, border: active ? `1px solid ${C.gold}55` : `1px solid transparent`, cursor: "pointer", fontSize: 13, fontWeight: active ? 700 : 600, background: active ? C.goldGlow : C.surface, color: active ? C.gold : C.muted, whiteSpace: "nowrap", transition: "all 0.18s ease", boxShadow: active ? `0 0 14px ${C.gold}20` : "none", fontFamily: active ? FONT.display : FONT.body, fontStyle: active ? "italic" : "normal", letterSpacing: "normal", textTransform: "none" }}>{label}</button>
 ));
 const Card = memo(({ children, style }) => (
   <div style={{ background: `linear-gradient(145deg,${C.card} 0%,rgba(14,16,26,0.95) 100%)`, border: `1px solid ${C.border}`, borderRadius: 16, padding: 16, transition: "border-color 0.2s,box-shadow 0.2s,transform 0.2s", ...style }}
@@ -196,19 +196,24 @@ function Modal({ title, onClose, children }) {
     document.body.style.position = "fixed";
     document.body.style.top = `-${y}px`;
     document.body.style.width = "100%";
+    // Fermeture par touche Escape (WCAG 2.1.1 + pattern UX standard)
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
     return () => {
       document.body.style.position = "";
       document.body.style.top = "";
       document.body.style.width = "";
       window.scrollTo(0, y);
+      window.removeEventListener("keydown", onKey);
     };
-  }, []);
+  }, [onClose]);
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.88)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center", backdropFilter: "blur(4px)" }} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="slide-up" style={{ background: `linear-gradient(160deg,${C.card} 0%,${C.surface} 100%)`, border: `1px solid ${C.border2}`, borderRadius: "22px 22px 0 0", width: "100%", maxWidth: 480, maxHeight: "92dvh", overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", padding: 22 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+      <div className="slide-up" style={{ background: `linear-gradient(160deg,${C.card} 0%,${C.surface} 100%)`, border: `1px solid ${C.border2}`, borderRadius: "22px 22px 0 0", width: "100%", maxWidth: 480, maxHeight: "92dvh", overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", padding: "0 22px 22px" }}>
+        {/* Header sticky : reste visible même quand on scroll dans la modale */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 22px 12px", margin: "0 -22px 16px", position: "sticky", top: 0, background: C.card, zIndex: 10, borderBottom: `1px solid ${C.border}` }}>
           <span style={{ fontSize: 17, fontWeight: 700, color: C.text, fontFamily: FONT.display }}>{title}</span>
-          <button onClick={onClose} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted, fontSize: 16, cursor: "pointer", borderRadius: 8, width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+          <button onClick={onClose} aria-label="Fermer" style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted, fontSize: 18, cursor: "pointer", borderRadius: 10, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>✕</button>
         </div>
         {children}
       </div>
@@ -1773,6 +1778,7 @@ export default function App() {
   const [annualByGamme, setAnnualByGamme] = useState(null);
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   const [showKmBackfill, setShowKmBackfill] = useState(false);
+  const tabsRef = useRef(null);
   const [toasts, setToasts] = useState([]);
   const pushToast = (t) => {
     const id = uid();
@@ -1781,6 +1787,11 @@ export default function App() {
   };
   const dismissToast = (id) => setToasts(prev => prev.filter(x => x.id !== id));
   useEffect(() => { registerToastHandler(pushToast); }, []);
+  // Auto-scroll de la barre d'onglets pour amener l'onglet actif en vue
+  useEffect(() => {
+    const el = tabsRef.current?.querySelector('[data-tab-active="true"]');
+    el?.scrollIntoView({ inline: "center", behavior: "smooth", block: "nearest" });
+  }, [tab]);
 
   const mk = monthKey(year, month);
   const savedChauffeurs = chauffeurObjects.map(c => c.name);
@@ -2344,7 +2355,7 @@ export default function App() {
             <button onClick={() => setShowGlobalSearch(true)} title="Recherche globale" style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted, borderRadius: 10, width: 34, height: 34, cursor: "pointer", fontSize: 15, marginLeft: 4, transition: "all 0.15s" }} onMouseEnter={e => { e.currentTarget.style.borderColor = `${C.gold}55`; e.currentTarget.style.color = C.gold; }} onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.muted; }}>🔍</button>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 2, WebkitOverflowScrolling: "touch" }}>
+        <div ref={tabsRef} style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 2, WebkitOverflowScrolling: "touch", scrollbarWidth: "none", maskImage: "linear-gradient(to right, black calc(100% - 32px), transparent 100%)", WebkitMaskImage: "linear-gradient(to right, black calc(100% - 32px), transparent 100%)" }}>
           {[["dashboard","📊 Résumé"],["courses","🚗 Courses"],["chauffeurs","🧑‍✈️ Chauffeurs"],["frais","💸 Frais"],["societes","🏢 Sociétés"],["clients","👤 Clients"],["annuel","📅 Année"]]
             .filter(([id]) => profile !== "commission" || (id !== "frais" && id !== "chauffeurs"))
             .map(([id, lbl]) => (
