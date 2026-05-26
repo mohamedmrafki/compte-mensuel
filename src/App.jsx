@@ -118,6 +118,7 @@ function fraisToDb(f, mk) {
     id: f.id, date: f.date, category: f.category || null,
     amount: Number(f.amount) || 0, notes: f.notes || null,
     is_recurring: f.isRecurring || false, recurring_id: f.recurringId || null,
+    vehicule: f.vehicule || null,
     month_key: mk,
   };
 }
@@ -126,6 +127,7 @@ function fraisFromDb(r) {
     id: r.id, date: r.date, category: r.category || "",
     amount: r.amount != null ? String(r.amount) : "",
     notes: r.notes || "", isRecurring: r.is_recurring || false, recurringId: r.recurring_id || null,
+    vehicule: r.vehicule || "",
   };
 }
 function recurringToDb(r) {
@@ -931,24 +933,61 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
 }
 
 // ── Modal Frais ───────────────────────────────────────────────────────────────
-const defFrais = () => ({ id: uid(), date: today(), category: "", amount: "", notes: "" });
+const defFrais = () => ({ id: uid(), date: today(), category: "", amount: "", notes: "", vehicule: "" });
+
+// Catégories pour lesquelles le véhicule est OBLIGATOIRE
+const FRAIS_NEEDS_VEHICLE = ["Essence / Péage", "Entretien / Réparation"];
+
 function FraisModal({ initial, onSave, onClose }) {
   const [f, setF] = useState(initial || defFrais());
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const needsVehicle = FRAIS_NEEDS_VEHICLE.includes(f.category);
+  const isValid = f.category && f.amount && (!needsVehicle || f.vehicule);
   return (
     <Modal title={initial ? "Modifier" : "Nouvelle dépense"} onClose={onClose}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <Input label="Date" type="date" value={f.date} onChange={e => set("date", e.target.value)} />
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <Lbl>Catégorie</Lbl>
-          <select value={f.category} onChange={e => set("category", e.target.value)} style={{ ...iBase, appearance: "none" }}>
+          <select value={f.category} onChange={e => { const cat = e.target.value; set("category", cat); if (!FRAIS_NEEDS_VEHICLE.includes(cat)) set("vehicule", ""); }} style={{ ...iBase, appearance: "none" }}>
             <option value="">-- Catégorie --</option>
             {FRAIS_CATS.map(c => <option key={c}>{c}</option>)}
           </select>
         </div>
+        {needsVehicle && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <Lbl>Véhicule concerné <span style={{ color: C.red }}>*</span></Lbl>
+            <div style={{ display: "flex", gap: 8 }}>
+              {VEHICULES.map(v => {
+                const active = f.vehicule === v;
+                return (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => set("vehicule", v)}
+                    style={{
+                      flex: 1,
+                      padding: "10px 8px",
+                      borderRadius: 10,
+                      border: `1px solid ${active ? vColor(v) : C.border}`,
+                      background: active ? `${vColor(v)}22` : C.surface,
+                      color: active ? vColor(v) : C.muted,
+                      cursor: "pointer",
+                      fontSize: 13,
+                      fontWeight: active ? 700 : 500,
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    {vIcon(v)} {v.replace("Classe ", "")}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         <Input label="Montant (€)" type="text" inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" value={f.amount} onChange={e => set("amount", e.target.value)} placeholder="0.00" />
         <Textarea label="Notes" value={f.notes} onChange={e => set("notes", e.target.value)} placeholder="Détail…" />
-        <Btn onClick={() => f.category && f.amount && onSave(f)}>{initial ? "Enregistrer" : "Ajouter"}</Btn>
+        <Btn onClick={() => isValid && onSave(f)} style={{ opacity: isValid ? 1 : 0.5, cursor: isValid ? "pointer" : "not-allowed" }}>{initial ? "Enregistrer" : "Ajouter"}</Btn>
       </div>
     </Modal>
   );
@@ -1912,7 +1951,7 @@ export default function App() {
   const todayStr = today();
 
   const monthStats = useMemo(() => {
-    let totalCA = 0, totalCC = 0, totalTips = 0, todayCA = 0, todayCount = 0, privateCA = 0, totalKm = 0, todayKm = 0;
+    let totalCA = 0, totalCC = 0, totalTips = 0, todayCA = 0, todayCC = 0, todayCount = 0, privateCA = 0, totalKm = 0, todayKm = 0;
     const byCompany = {};
     const byVehicle = {};
     const byChauffeur = {};
@@ -1925,7 +1964,7 @@ export default function App() {
       totalCC += cost;
       totalTips += Number(c.tips || 0);
       totalKm += km;
-      if (c.date === todayStr) { todayCA += total; todayCount++; todayKm += km; }
+      if (c.date === todayStr) { todayCA += total; todayCC += cost; todayCount++; todayKm += km; }
       if (c.isPrivate) privateCA += total;
       if (c.company && !c.isPrivate) {
         if (!byCompany[c.company]) byCompany[c.company] = { amount: 0, trips: [] };
@@ -1933,10 +1972,11 @@ export default function App() {
         byCompany[c.company].trips.push(c);
       }
       const v = c.vehicule || "N/A";
-      if (!byVehicle[v]) byVehicle[v] = { trips: 0, ca: 0, km: 0 };
+      if (!byVehicle[v]) byVehicle[v] = { trips: 0, ca: 0, km: 0, cc: 0 };
       byVehicle[v].trips++;
       byVehicle[v].ca += total;
       byVehicle[v].km += km;
+      byVehicle[v].cc += cost;
       if (c.chauffeur && c.chauffeur !== defaultChauffeur && cost > 0) {
         if (!byChauffeur[c.chauffeur]) byChauffeur[c.chauffeur] = { trips: [], cost: 0, ca: 0 };
         byChauffeur[c.chauffeur].trips.push(c);
@@ -1946,11 +1986,34 @@ export default function App() {
       driversSet.add(c.chauffeur || defaultChauffeur);
     }
     driversSet.delete(undefined); driversSet.delete(null); driversSet.delete("");
-    return { totalCA, totalCC, totalTips, todayCA, todayCount, privateCA, totalKm, todayKm, byCompany, byVehicle, byChauffeur, uniqueDriversInMonth: [...driversSet] };
+    return { totalCA, totalCC, totalTips, todayCA, todayCC, todayCount, privateCA, totalKm, todayKm, byCompany, byVehicle, byChauffeur, uniqueDriversInMonth: [...driversSet] };
   }, [mc, defaultChauffeur, todayStr]);
 
-  const { totalCA, totalCC, totalTips, todayCA, todayCount, privateCA, totalKm, todayKm, byCompany, byVehicle, byChauffeur, uniqueDriversInMonth } = monthStats;
+  const { totalCA, totalCC, totalTips, todayCA, todayCC, todayCount, privateCA, totalKm, todayKm, byCompany, byVehicle, byChauffeur, uniqueDriversInMonth } = monthStats;
+  const todayNet = todayCA - todayCC;
   const totalFrais = useMemo(() => mf.reduce((s, f) => s + Number(f.amount || 0), 0), [mf]);
+
+  // Agrégation des frais : par catégorie (pour "Où va mon argent") + par véhicule (pour "Coût par véhicule")
+  const fraisStats = useMemo(() => {
+    const byCategory = {};
+    const byVehicleFrais = {};  // {Classe E: {essence, entretien, total}}
+    let totalGeneraux = 0;       // frais sans véhicule (SFR, Bureau, etc.)
+    for (const f of mf) {
+      const amount = Number(f.amount || 0);
+      const cat = f.category || "Autre";
+      const veh = f.vehicule || null;
+      byCategory[cat] = (byCategory[cat] || 0) + amount;
+      if (veh) {
+        if (!byVehicleFrais[veh]) byVehicleFrais[veh] = { essence: 0, entretien: 0, total: 0 };
+        if (cat === "Essence / Péage") byVehicleFrais[veh].essence += amount;
+        else if (cat === "Entretien / Réparation") byVehicleFrais[veh].entretien += amount;
+        byVehicleFrais[veh].total += amount;
+      } else {
+        totalGeneraux += amount;
+      }
+    }
+    return { byCategory, byVehicleFrais, totalGeneraux };
+  }, [mf]);
   const totalMargeCommission = profile === "commission" ? totalCA - totalCC : commissionCA;
   const commissionShare = totalMargeCommission / 2;
   const totalCAAvecCommission = profile !== "commission" ? totalCA + commissionShare : totalCA;
@@ -2392,11 +2455,11 @@ export default function App() {
                 {todayCount > 0 && (
                   <div style={{ background: `${C.gold}10`, border: `1px solid ${C.gold}33`, borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
                     <div>
-                      <div style={{ fontSize: 11, color: C.goldDim, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Aujourd'hui</div>
+                      <div style={{ fontSize: 11, color: C.goldDim, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Aujourd'hui · Net</div>
                       <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>{todayCount} course{todayCount > 1 ? "s" : ""}</div>
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
-                      <div style={{ fontSize: 20, fontWeight: 800, color: C.gold, fontFamily: "monospace" }}>{fmt(todayCA)}</div>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: C.gold, fontFamily: "monospace" }}>{fmt(todayNet)}</div>
                       {todayKm > 0 && (
                         <div style={{ fontSize: 12, color: C.teal, fontFamily: "monospace", fontWeight: 600 }}>📏 {Math.round(todayKm).toLocaleString("fr-FR")} km</div>
                       )}
@@ -2524,18 +2587,92 @@ export default function App() {
                     </Card>
                   </>
                 )}
-                {Object.keys(byVehicle).length > 0 && (
+                {Object.keys(byVehicle).length > 0 && profile !== "commission" && (
                   <Card>
-                    <div style={{ fontSize: 12, color: C.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Par gamme</div>
-                    <div style={{ display: "flex", gap: 10 }}>
-                      {Object.entries(byVehicle).map(([v, d]) => (
-                        <div key={v} style={{ flex: 1, background: C.surface, borderRadius: 10, padding: "12px 14px", border: `1px solid ${vColor(v)}44` }}>
-                          <div style={{ fontSize: 18, marginBottom: 4 }}>{vIcon(v)}</div>
-                          <div style={{ fontWeight: 700, fontSize: 13, color: vColor(v) }}>{v}</div>
-                          <div style={{ fontSize: 18, fontWeight: 800, fontFamily: "monospace", color: C.text, marginTop: 4 }}>{fmt(d.ca)}</div>
-                          <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{d.trips} course{d.trips > 1 ? "s" : ""}</div>
+                    <div style={{ fontSize: 12, color: C.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>💼 Rentabilité par véhicule</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {Object.entries(byVehicle).filter(([v]) => v !== "N/A").map(([v, d]) => {
+                        const vFrais = fraisStats.byVehicleFrais[v] || { essence: 0, entretien: 0, total: 0 };
+                        const netVehic = d.ca - d.cc - vFrais.total;
+                        const essencePerKm = d.km > 0 && vFrais.essence > 0 ? vFrais.essence / d.km : null;
+                        const marge = d.ca > 0 ? (netVehic / d.ca) * 100 : 0;
+                        return (
+                          <div key={v} style={{ background: C.surface, borderRadius: 10, padding: 12, border: `1px solid ${vColor(v)}33` }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+                              <div style={{ fontWeight: 700, fontSize: 14, color: vColor(v) }}>
+                                {vIcon(v)} {v}
+                                <span style={{ fontSize: 11, color: C.muted, fontWeight: 400, marginLeft: 6 }}>· {d.trips} course{d.trips > 1 ? "s" : ""}{d.km > 0 ? ` · ${Math.round(d.km)} km` : ""}</span>
+                              </div>
+                              <div style={{ fontSize: 11, color: marge >= 50 ? C.green : marge >= 25 ? C.orange : C.red, fontWeight: 700 }}>
+                                {Math.round(marge)}% marge
+                              </div>
+                            </div>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, fontSize: 12 }}>
+                              <div style={{ color: C.muted }}>CA brut</div>
+                              <div style={{ textAlign: "right", fontFamily: "monospace", color: C.gold, fontWeight: 600 }}>{fmt(d.ca)}</div>
+                              {vFrais.essence > 0 && (
+                                <>
+                                  <div style={{ color: C.muted }}>⛽ Essence{essencePerKm ? ` · ${essencePerKm.toFixed(2)} €/km` : ""}</div>
+                                  <div style={{ textAlign: "right", fontFamily: "monospace", color: C.red }}>−{fmt(vFrais.essence)}</div>
+                                </>
+                              )}
+                              {vFrais.entretien > 0 && (
+                                <>
+                                  <div style={{ color: C.muted }}>🔧 Entretien</div>
+                                  <div style={{ textAlign: "right", fontFamily: "monospace", color: C.red }}>−{fmt(vFrais.entretien)}</div>
+                                </>
+                              )}
+                              {d.cc > 0 && (
+                                <>
+                                  <div style={{ color: C.muted }}>👨‍✈️ Chauffeur</div>
+                                  <div style={{ textAlign: "right", fontFamily: "monospace", color: C.orange }}>−{fmt(d.cc)}</div>
+                                </>
+                              )}
+                            </div>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, marginTop: 8, borderTop: `1px solid ${C.border}` }}>
+                              <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>Net {v}</span>
+                              <span style={{ fontFamily: "monospace", fontSize: 16, fontWeight: 800, color: netVehic >= 0 ? C.green : C.red }}>{fmt(netVehic)}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {fraisStats.totalGeneraux > 0 && (
+                        <div style={{ background: C.surface, borderRadius: 10, padding: "10px 12px", border: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>📋 Frais généraux</div>
+                            <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>SFR, bureau, assurance pro, etc.</div>
+                          </div>
+                          <div style={{ fontFamily: "monospace", fontWeight: 700, color: C.red }}>−{fmt(fraisStats.totalGeneraux)}</div>
                         </div>
-                      ))}
+                      )}
+                    </div>
+                  </Card>
+                )}
+                {Object.keys(fraisStats.byCategory).length > 0 && profile !== "commission" && (
+                  <Card>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+                      <div style={{ fontSize: 12, color: C.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>💸 Où va mon argent</div>
+                      <div style={{ fontSize: 12, fontFamily: "monospace", fontWeight: 700, color: C.red }}>{fmt(totalFrais)}</div>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {Object.entries(fraisStats.byCategory)
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([cat, amount]) => {
+                          const pct = totalFrais > 0 ? (amount / totalFrais) * 100 : 0;
+                          return (
+                            <div key={cat}>
+                              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
+                                <span style={{ color: C.text, fontWeight: 500 }}>{cat}</span>
+                                <span style={{ fontFamily: "monospace", color: C.text, fontWeight: 600 }}>
+                                  {fmt(amount)} <span style={{ color: C.muted, fontWeight: 400, fontSize: 11 }}>· {pct.toFixed(0)}%</span>
+                                </span>
+                              </div>
+                              <div style={{ height: 4, background: C.surface, borderRadius: 2, overflow: "hidden" }}>
+                                <div style={{ height: "100%", width: `${pct}%`, background: `linear-gradient(90deg, ${C.red}, ${C.orange})`, borderRadius: 2 }} />
+                              </div>
+                            </div>
+                          );
+                        })}
                     </div>
                   </Card>
                 )}
