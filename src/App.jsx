@@ -70,7 +70,14 @@ const invoiceStatusInfo = key => INVOICE_STATUSES.find(s => s.key === key) || IN
 
 // ── Utilitaires ───────────────────────────────────────────────────────────────
 const uid = () => Math.random().toString(36).slice(2, 9);
-const fmtNum = (n) => Number(n || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// Convertit "80,50" ou "80.50" → 80.50. Gère les saisies utilisateur avec virgule (clavier iOS FR).
+const toNum = (s) => {
+  if (s == null || s === "") return 0;
+  if (typeof s === "number") return s;
+  const n = Number(String(s).replace(",", "."));
+  return isNaN(n) ? 0 : n;
+};
+const fmtNum = (n) => toNum(n).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmt = (n) => fmtNum(n) + " €";
 const monthKey = (y, m) => `${y}-${String(m + 1).padStart(2, "0")}`;
 const monthLabel = (y, m) => new Date(y, m, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
@@ -82,16 +89,16 @@ function courseToDb(c, mk) {
     id: c.id, date: c.date, heure: c.heure || null, client: c.client || null,
     chauffeur: c.chauffeur || null, vehicule: c.vehicule || null,
     prestation: c.prestation || "transfert", prise: c.prise || null, depose: c.depose || null,
-    prix_ttc: c.prixTTC !== "" && c.prixTTC != null ? Number(c.prixTTC) : null,
-    taux_horaire: c.tauxHoraire !== "" && c.tauxHoraire != null ? Number(c.tauxHoraire) : null,
-    nb_heures: c.nbHeures !== "" && c.nbHeures != null ? Number(c.nbHeures) : null,
+    prix_ttc: c.prixTTC !== "" && c.prixTTC != null ? toNum(c.prixTTC) : null,
+    taux_horaire: c.tauxHoraire !== "" && c.tauxHoraire != null ? toNum(c.tauxHoraire) : null,
+    nb_heures: c.nbHeures !== "" && c.nbHeures != null ? toNum(c.nbHeures) : null,
     supplements: c.supplements || [],
-    total: Number(c.total) || 0, tips: Number(c.tips) || 0,
-    chauffeur_flat_rate: c.chauffeurFlatRate !== "" && c.chauffeurFlatRate != null ? Number(c.chauffeurFlatRate) : null,
-    chauffeur_hourly_rate: c.chauffeurHourlyRate !== "" && c.chauffeurHourlyRate != null ? Number(c.chauffeurHourlyRate) : null,
-    chauffeur_cost: Number(c.chauffeurCost) || 0,
+    total: toNum(c.total), tips: toNum(c.tips),
+    chauffeur_flat_rate: c.chauffeurFlatRate !== "" && c.chauffeurFlatRate != null ? toNum(c.chauffeurFlatRate) : null,
+    chauffeur_hourly_rate: c.chauffeurHourlyRate !== "" && c.chauffeurHourlyRate != null ? toNum(c.chauffeurHourlyRate) : null,
+    chauffeur_cost: toNum(c.chauffeurCost),
     is_private: c.isPrivate || false, company: c.company || null, notes: c.notes || null,
-    distance_km: c.distanceKm != null && c.distanceKm !== "" ? Number(c.distanceKm) : null,
+    distance_km: c.distanceKm != null && c.distanceKm !== "" ? toNum(c.distanceKm) : null,
     month_key: mk,
   };
 }
@@ -116,7 +123,7 @@ function courseFromDb(r) {
 function fraisToDb(f, mk) {
   return {
     id: f.id, date: f.date, category: f.category || null,
-    amount: Number(f.amount) || 0, notes: f.notes || null,
+    amount: toNum(f.amount), notes: f.notes || null,
     is_recurring: f.isRecurring || false, recurring_id: f.recurringId || null,
     vehicule: f.vehicule || null,
     month_key: mk,
@@ -131,7 +138,7 @@ function fraisFromDb(r) {
   };
 }
 function recurringToDb(r) {
-  return { id: r.id, category: r.category || null, amount: Number(r.amount) || 0, notes: r.notes || null, active: r.active !== false, day: Number(r.day) || 1 };
+  return { id: r.id, category: r.category || null, amount: toNum(r.amount), notes: r.notes || null, active: r.active !== false, day: Number(r.day) || 1 };
 }
 function recurringFromDb(r) {
   return { id: r.id, category: r.category || "", amount: r.amount != null ? String(r.amount) : "", notes: r.notes || "", active: r.active !== false, day: r.day || 1 };
@@ -477,7 +484,7 @@ function SupplementsEditor({ supplements, onChange }) {
       {supplements.length > 0 && (
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: `${C.teal}15`, borderRadius: 8, padding: "8px 12px" }}>
           <span style={{ fontSize: 13, color: C.teal, fontWeight: 600 }}>Total suppléments</span>
-          <span style={{ fontFamily: "monospace", fontWeight: 700, color: C.teal }}>{fmt(supplements.reduce((s, x) => s + Number(x.amount || 0), 0))}</span>
+          <span style={{ fontFamily: "monospace", fontWeight: 700, color: C.teal }}>{fmt(supplements.reduce((s, x) => s + toNum(x.amount), 0))}</span>
         </div>
       )}
     </div>
@@ -495,7 +502,7 @@ function generateRecapHTML({ year, month, courses, frais, savedCompanies, defaul
   const mf = frais[mk] || [];
   const label = monthLabel(year, month);
   const totalCA = mc.reduce((s, c) => s + Number(c.total || 0), 0);
-  const totalFrais = mf.reduce((s, f) => s + Number(f.amount || 0), 0);
+  const totalFrais = mf.reduce((s, f) => s + toNum(f.amount || 0), 0);
   const totalTips = mc.reduce((s, c) => s + Number(c.tips || 0), 0);
   const totalCC = mc.reduce((s, c) => s + Number(c.chauffeurCost || 0), 0);
   const isCommission = profile === "commission";
@@ -513,7 +520,7 @@ function generateRecapHTML({ year, month, courses, frais, savedCompanies, defaul
   const byVehicle = {};
   mc.forEach(c => { const v = c.vehicule || "N/A"; if (!byVehicle[v]) byVehicle[v] = { trips: 0, ca: 0 }; byVehicle[v].trips++; byVehicle[v].ca += Number(c.total || 0); });
   const fd = d => new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
-  const supTotal = sups => (sups || []).reduce((s, x) => s + Number(x.amount || 0), 0);
+  const supTotal = sups => (sups || []).reduce((s, x) => s + toNum(x.amount), 0);
   const tripRows = trips => trips.map(c => {
     const sups = c.supplements || [];
     const supSum = supTotal(sups);
@@ -638,15 +645,15 @@ const defCourse = (dc = "") => ({
 });
 
 function computeTotal(f) {
-  const supTotal = (f.supplements || []).reduce((s, x) => s + Number(x.amount || 0), 0);
-  if (f.prestation === "transfert") return String((Number(f.prixTTC || 0) + supTotal).toFixed(2));
-  if (f.tauxHoraire && f.nbHeures) return String((Number(f.tauxHoraire) * Number(f.nbHeures) + supTotal).toFixed(2));
+  const supTotal = (f.supplements || []).reduce((s, x) => s + toNum(x.amount), 0);
+  if (f.prestation === "transfert") return String((toNum(f.prixTTC || 0) + supTotal).toFixed(2));
+  if (f.tauxHoraire && f.nbHeures) return String((toNum(f.tauxHoraire) * toNum(f.nbHeures) + supTotal).toFixed(2));
   return supTotal > 0 ? String(supTotal.toFixed(2)) : "";
 }
 function computeChauffeurCost(f) {
-  if (f.prestation === "transfert") return f.chauffeurFlatRate ? String(Number(f.chauffeurFlatRate).toFixed(2)) : "";
+  if (f.prestation === "transfert") return f.chauffeurFlatRate ? String(toNum(f.chauffeurFlatRate).toFixed(2)) : "";
   if (f.prestation === "mad" && f.chauffeurHourlyRate && f.nbHeures)
-    return String((Number(f.chauffeurHourlyRate) * Number(f.nbHeures)).toFixed(2));
+    return String((toNum(f.chauffeurHourlyRate) * toNum(f.nbHeures)).toFixed(2));
   return "";
 }
 
@@ -729,8 +736,8 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
   const companyOk = !!companyObj;
   const clientOk = !!(savedClients || []).some(c => [c.prenom, c.nom].filter(Boolean).join(" ").toLowerCase() === (f.client || "").trim().toLowerCase());
   const chauffeurSaved = savedChauffeurs.some(c => c.toLowerCase() === (f.chauffeur || "").trim().toLowerCase());
-  const valid = f.date && Number(f.total) > 0;
-  const supTotal = (f.supplements || []).reduce((s, x) => s + Number(x.amount || 0), 0);
+  const valid = f.date && toNum(f.total) > 0;
+  const supTotal = (f.supplements || []).reduce((s, x) => s + toNum(x.amount), 0);
   const vColor = v => v === "Classe E" ? C.blue : v === "Classe V" ? C.purple : C.teal;
 
   return (
@@ -835,7 +842,7 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
             {f.tauxHoraire && f.nbHeures && (
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, paddingTop: 8, borderTop: `1px solid ${C.border}` }}>
                 <span style={{ color: C.muted }}>Base ({f.tauxHoraire}€/h × {f.nbHeures}h)</span>
-                <span style={{ fontWeight: 600, fontFamily: "monospace" }}>{fmt(Number(f.tauxHoraire) * Number(f.nbHeures))}</span>
+                <span style={{ fontWeight: 600, fontFamily: "monospace" }}>{fmt(toNum(f.tauxHoraire) * toNum(f.nbHeures))}</span>
               </div>
             )}
           </div>
@@ -843,14 +850,14 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
 
         <SupplementsEditor supplements={f.supplements || []} onChange={sups => set("supplements", sups)} />
 
-        {Number(f.total) > 0 && (
+        {toNum(f.total) > 0 && (
           <div style={{ background: `${C.gold}12`, border: `1px solid ${C.gold}44`, borderRadius: 10, padding: "12px 14px" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {f.prestation === "transfert" && Number(f.prixTTC) > 0 && (
+              {f.prestation === "transfert" && toNum(f.prixTTC) > 0 && (
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}><span style={{ color: C.muted }}>Prix de base</span><span style={{ fontFamily: "monospace" }}>{fmt(f.prixTTC)}</span></div>
               )}
               {f.prestation === "mad" && f.tauxHoraire && f.nbHeures && (
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}><span style={{ color: C.muted }}>Base MAD</span><span style={{ fontFamily: "monospace" }}>{fmt(Number(f.tauxHoraire) * Number(f.nbHeures))}</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}><span style={{ color: C.muted }}>Base MAD</span><span style={{ fontFamily: "monospace" }}>{fmt(toNum(f.tauxHoraire) * toNum(f.nbHeures))}</span></div>
               )}
               {supTotal > 0 && (
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}><span style={{ color: C.teal }}>Suppléments ({(f.supplements || []).length})</span><span style={{ fontFamily: "monospace", color: C.teal }}>+{fmt(supTotal)}</span></div>
@@ -879,13 +886,13 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <Lbl>Forfait transfert (€)</Lbl>
-                  {Number(f.prixTTC) > 0 && <span style={{ fontSize: 11, color: C.muted }}>Prix client : {fmt(f.prixTTC)}</span>}
+                  {toNum(f.prixTTC) > 0 && <span style={{ fontSize: 11, color: C.muted }}>Prix client : {fmt(f.prixTTC)}</span>}
                 </div>
                 <input type="text" inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" value={f.chauffeurFlatRate} onChange={e => set("chauffeurFlatRate", e.target.value)} placeholder="ex: 150" style={{ ...iBase }} />
-                {Number(f.chauffeurFlatRate) > 0 && Number(f.total) > 0 && (
+                {toNum(f.chauffeurFlatRate) > 0 && toNum(f.total) > 0 && (
                   <div style={{ display: "flex", gap: 8 }}>
                     <div style={{ flex: 1, background: C.surface, borderRadius: 8, padding: "8px 12px" }}><div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: 1 }}>À payer</div><div style={{ fontSize: 16, fontWeight: 700, color: C.orange, fontFamily: "monospace" }}>{fmt(f.chauffeurFlatRate)}</div></div>
-                    <div style={{ flex: 1, background: C.surface, borderRadius: 8, padding: "8px 12px" }}><div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: 1 }}>Marge</div><div style={{ fontSize: 16, fontWeight: 700, color: Number(f.total) - Number(f.chauffeurFlatRate) >= 0 ? C.green : C.red, fontFamily: "monospace" }}>{fmt(Number(f.total) - Number(f.chauffeurFlatRate))}</div></div>
+                    <div style={{ flex: 1, background: C.surface, borderRadius: 8, padding: "8px 12px" }}><div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: 1 }}>Marge</div><div style={{ fontSize: 16, fontWeight: 700, color: toNum(f.total) - toNum(f.chauffeurFlatRate) >= 0 ? C.green : C.red, fontFamily: "monospace" }}>{fmt(toNum(f.total) - toNum(f.chauffeurFlatRate))}</div></div>
                   </div>
                 )}
               </div>
@@ -896,11 +903,11 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
                   {f.tauxHoraire && <span style={{ fontSize: 11, color: C.muted }}>Client : {f.tauxHoraire}€/h</span>}
                 </div>
                 <input type="text" inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" value={f.chauffeurHourlyRate} onChange={e => set("chauffeurHourlyRate", e.target.value)} placeholder="ex: 35" style={{ ...iBase }} />
-                {Number(f.chauffeurHourlyRate) > 0 && Number(f.nbHeures) > 0 && (
+                {toNum(f.chauffeurHourlyRate) > 0 && toNum(f.nbHeures) > 0 && (
                   <div style={{ background: C.surface, borderRadius: 8, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 6 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}><span style={{ color: C.muted }}>{f.chauffeurHourlyRate}€/h × {f.nbHeures}h</span><span style={{ fontWeight: 700, color: C.orange, fontFamily: "monospace" }}>{fmt(Number(f.chauffeurHourlyRate) * Number(f.nbHeures))}</span></div>
-                    {Number(f.total) > 0 && (
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, paddingTop: 6, borderTop: `1px solid ${C.border}` }}><span style={{ color: C.muted }}>Marge</span><span style={{ fontWeight: 700, fontFamily: "monospace", color: Number(f.total) - Number(f.chauffeurHourlyRate) * Number(f.nbHeures) >= 0 ? C.green : C.red }}>{fmt(Number(f.total) - Number(f.chauffeurHourlyRate) * Number(f.nbHeures))}</span></div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}><span style={{ color: C.muted }}>{f.chauffeurHourlyRate}€/h × {f.nbHeures}h</span><span style={{ fontWeight: 700, color: C.orange, fontFamily: "monospace" }}>{fmt(toNum(f.chauffeurHourlyRate) * toNum(f.nbHeures))}</span></div>
+                    {toNum(f.total) > 0 && (
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, paddingTop: 6, borderTop: `1px solid ${C.border}` }}><span style={{ color: C.muted }}>Marge</span><span style={{ fontWeight: 700, fontFamily: "monospace", color: toNum(f.total) - toNum(f.chauffeurHourlyRate) * toNum(f.nbHeures) >= 0 ? C.green : C.red }}>{fmt(toNum(f.total) - toNum(f.chauffeurHourlyRate) * toNum(f.nbHeures))}</span></div>
                     )}
                   </div>
                 )}
@@ -917,9 +924,9 @@ function CourseModal({ initial, onSave, onClose, savedCompanies, onSaveCompany, 
           </div>
           <textarea value={f.notes} onChange={e => set("notes", e.target.value)} placeholder="Informations supplémentaires…" style={{ ...iBase, resize: "vertical", minHeight: 56 }} />
         </div>
-        {isOtherDriver && Number(f.total) > 0 && (
-          (f.prestation === "transfert" && Number(f.chauffeurFlatRate) > Number(f.total)) ||
-          (f.prestation === "mad" && Number(f.chauffeurHourlyRate) * Number(f.nbHeures) > Number(f.total))
+        {isOtherDriver && toNum(f.total) > 0 && (
+          (f.prestation === "transfert" && toNum(f.chauffeurFlatRate) > toNum(f.total)) ||
+          (f.prestation === "mad" && toNum(f.chauffeurHourlyRate) * toNum(f.nbHeures) > toNum(f.total))
         ) && (
           <div style={{ background: `${C.red}18`, border: `1px solid ${C.red}55`, borderRadius: 10, padding: "10px 14px", fontSize: 13, color: C.red, fontWeight: 600 }}>
             ⚠️ Marge négative — vous payez plus que le prix client !
@@ -1991,7 +1998,7 @@ export default function App() {
 
   const { totalCA, totalCC, totalTips, todayCA, todayCC, todayCount, privateCA, totalKm, todayKm, byCompany, byVehicle, byChauffeur, uniqueDriversInMonth } = monthStats;
   const todayNet = todayCA - todayCC;
-  const totalFrais = useMemo(() => mf.reduce((s, f) => s + Number(f.amount || 0), 0), [mf]);
+  const totalFrais = useMemo(() => mf.reduce((s, f) => s + toNum(f.amount || 0), 0), [mf]);
 
   // Agrégation des frais : par catégorie (pour "Où va mon argent") + par véhicule (pour "Coût par véhicule")
   const fraisStats = useMemo(() => {
@@ -1999,7 +2006,7 @@ export default function App() {
     const byVehicleFrais = {};  // {Classe E: {essence, entretien, total}}
     let totalGeneraux = 0;       // frais sans véhicule (SFR, Bureau, etc.)
     for (const f of mf) {
-      const amount = Number(f.amount || 0);
+      const amount = toNum(f.amount || 0);
       const cat = f.category || "Autre";
       const veh = f.vehicule || null;
       byCategory[cat] = (byCategory[cat] || 0) + amount;
@@ -2271,7 +2278,7 @@ export default function App() {
   };
 
   const recurringCount = recurringFrais.filter(r => r.active).length;
-  const monthRecurringTotal = recurringFrais.filter(r => r.active && r.amount).reduce((s, r) => s + Number(r.amount || 0), 0);
+  const monthRecurringTotal = recurringFrais.filter(r => r.active && r.amount).reduce((s, r) => s + toNum(r.amount), 0);
 
   // ── Grille tarifaire ────────────────────────────────────────────────────────
   const saveTarifs = (t) => {
@@ -2710,7 +2717,7 @@ export default function App() {
                 {filteredCourses.length === 0 && mc.length > 0 && <div style={{ textAlign: "center", padding: 24, color: C.muted }}>Aucun résultat pour « {searchQuery} »</div>}
                 {filteredCourses.map(c => {
                   const sups = c.supplements || [];
-                  const supSum = sups.reduce((s, x) => s + Number(x.amount || 0), 0);
+                  const supSum = sups.reduce((s, x) => s + toNum(x.amount), 0);
                   return (
                     <Card key={c.id}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -2944,7 +2951,7 @@ export default function App() {
                       <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
                         {d.trips.map(c => {
                           const sups = c.supplements || [];
-                          const supSum = sups.reduce((s, x) => s + Number(x.amount || 0), 0);
+                          const supSum = sups.reduce((s, x) => s + toNum(x.amount), 0);
                           return (
                             <div key={c.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                               <div>
@@ -3086,7 +3093,7 @@ export default function App() {
                         <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
                           {d.trips.map(c => {
                             const sups = c.supplements || [];
-                            const supSum = sups.reduce((s, x) => s + Number(x.amount || 0), 0);
+                            const supSum = sups.reduce((s, x) => s + toNum(x.amount), 0);
                             return (
                               <div key={c.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                                 <div>
