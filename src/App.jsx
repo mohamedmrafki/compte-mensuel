@@ -2930,8 +2930,12 @@ export default function App() {
                           <button title="Copier la liste des prestations" onClick={() => {
                             const lines = d.trips.map(c => {
                               const dateStr = new Date(c.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
-                              const trajet = [c.prise, c.depose].filter(Boolean).join(" → ") || c.prestation;
-                              const parts = [dateStr, c.heure, c.client, trajet, c.vehicule, fmt(Number(c.total))].filter(Boolean);
+                              const isMad = c.prestation === "mad";
+                              const heureStr = isMad && c.nbHeures ? `${c.heure} · ${c.nbHeures}h` : c.heure;
+                              const trajet = isMad
+                                ? (c.prise ? `MAD ${c.prise}` : "Mise à disposition")
+                                : ([c.prise, c.depose].filter(Boolean).join(" → ") || c.prestation);
+                              const parts = [dateStr, heureStr, c.client, trajet, c.vehicule, fmt(Number(c.total))].filter(Boolean);
                               return parts.join("  |  ");
                             });
                             const header = `${name} – ${MOIS[month]} ${year}`;
@@ -3073,8 +3077,12 @@ export default function App() {
                             <button title="Copier les prestations" onClick={() => {
                               const lines = d.trips.map(c => {
                                 const dateStr = new Date(c.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
-                                const trajet = [c.prise, c.depose].filter(Boolean).join(" → ") || c.prestation;
-                                return [dateStr, c.heure, trajet, c.vehicule, fmt(Number(c.total))].filter(Boolean).join("  |  ");
+                                const isMad = c.prestation === "mad";
+                                const heureStr = isMad && c.nbHeures ? `${c.heure} · ${c.nbHeures}h` : c.heure;
+                                const trajet = isMad
+                                  ? (c.prise ? `MAD ${c.prise}` : "Mise à disposition")
+                                  : ([c.prise, c.depose].filter(Boolean).join(" → ") || c.prestation);
+                                return [dateStr, heureStr, trajet, c.vehicule, fmt(Number(c.total))].filter(Boolean).join("  |  ");
                               });
                               const header = `${name} – ${MOIS[month]} ${year}`;
                               const sep = "─".repeat(Math.min(header.length + 4, 40));
