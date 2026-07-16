@@ -33,8 +33,13 @@ async function sendMessage(chatId, text) {
 
 // ─── Parsing via Claude API ───────────────────────────────────────────────────
 
+// Date du jour en heure de Paris (le serveur tourne en UTC)
+function todayParis() {
+  return new Date().toLocaleDateString("fr-CA", { timeZone: "Europe/Paris" });
+}
+
 async function parseMessage(text) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayParis();
   const prompt = `Tu es un assistant qui parse des messages de commission VTC. Nous sommes le ${today}.
 
 Il existe DEUX types de messages. Détermine d'abord le type, puis réponds UNIQUEMENT en JSON valide, sans aucun texte autour.
@@ -281,7 +286,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true });
       }
 
-      const dateLibre = parsed.date || new Date().toISOString().slice(0, 10);
+      const dateLibre = parsed.date || todayParis();
       await insererCommissionLibre(parsed, dateLibre);
 
       await sendMessage(chatId,
