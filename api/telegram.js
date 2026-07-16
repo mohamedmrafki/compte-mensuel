@@ -58,12 +58,35 @@ Réponds alors :
 }
 
 ── TYPE 2 : COURSE ──
-Une course complète. Le message utilise un séparateur "/" pour distinguer les infos course des infos chauffeur :
+Une course complète. Elle peut arriver sous DEUX formes :
+
+Forme A — une seule ligne avec séparateur "/" :
 - AVANT le "/" : date, heure, nom du client, trajet (prise > dépose)
 - APRÈS le "/" : prénom du chauffeur et gamme du véhicule
-
 Exemple : "14/04/2026 John Smith CDG > Four Seasons 19h00 / Bruno E"
 → client = "John Smith", chauffeur = "Bruno", gamme = "E"
+
+Forme B — plusieurs lignes avec étiquettes (l'orthographe et les étiquettes varient) :
+- "Date" → date de la course
+- "Heure" → heure de prise en charge
+- "Driver" ou "Chauffeur" → prénom du chauffeur
+- "Nom", "Client" ou "Passager" → nom du client
+- "PEC", "Prise", "Pick up" ou "Départ" → lieu de prise en charge
+- "DROP", "Dépose", "Drop off" ou "Arrivée" → lieu de dépose
+- La gamme (E, V ou S) peut être seule sur une ligne, souvent à la fin du message
+Exemple :
+"Date : 7/07/26
+Heure: 4h00
+Driver: Mickael
+Nom : Maria Lozano Verano
+PEC : Hotel Avalon Cosy
+DROP: orly
+E"
+→ date = "2026-07-07", heure = "04:00", chauffeur = "Mickael", client = "Maria Lozano Verano", prise = "Hotel Avalon Cosy", depose = "orly", gamme = "E", type = "aeroport"
+
+Règles de normalisation :
+- Année sur 2 chiffres → 20XX (ex : 26 → 2026)
+- Heure "4h00" ou "4h" → "04:00" ; "17h20" → "17:20"
 
 Réponds alors :
 {
