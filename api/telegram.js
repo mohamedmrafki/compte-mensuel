@@ -34,17 +34,35 @@ async function sendMessage(chatId, text) {
 // ─── Parsing via Claude API ───────────────────────────────────────────────────
 
 async function parseMessage(text) {
-  const prompt = `Tu es un assistant qui parse des messages de commission VTC.
+  const today = new Date().toISOString().slice(0, 10);
+  const prompt = `Tu es un assistant qui parse des messages de commission VTC. Nous sommes le ${today}.
 
-Le message utilise un séparateur "/" pour distinguer les infos course des infos chauffeur :
+Il existe DEUX types de messages. Détermine d'abord le type, puis réponds UNIQUEMENT en JSON valide, sans aucun texte autour.
+
+── TYPE 1 : COMMISSION LIBRE ──
+L'utilisateur veut ajouter directement un montant de commission, sans course complète.
+Exemples : "ajoute 20€ de commission", "commission 15 euros apport client", "+30 de commission pour Bruno hier"
+
+Réponds alors :
+{
+  "type_message": "commission_libre",
+  "montant": nombre en euros,
+  "date": "YYYY-MM-DD" (si "hier", "demain" ou une date est mentionnée, sinon null),
+  "chauffeur": "prénom du chauffeur" ou null,
+  "note": "raison ou description si mentionnée" ou null
+}
+
+── TYPE 2 : COURSE ──
+Une course complète. Le message utilise un séparateur "/" pour distinguer les infos course des infos chauffeur :
 - AVANT le "/" : date, heure, nom du client, trajet (prise > dépose)
 - APRÈS le "/" : prénom du chauffeur et gamme du véhicule
 
 Exemple : "14/04/2026 John Smith CDG > Four Seasons 19h00 / Bruno E"
 → client = "John Smith", chauffeur = "Bruno", gamme = "E"
 
-Extrais les informations suivantes et réponds UNIQUEMENT en JSON valide, sans aucun texte autour :
+Réponds alors :
 {
+  "type_message": "course",
   "date": "YYYY-MM-DD",
   "heure": "HH:MM",
   "client": "Prénom Nom du client",
@@ -172,6 +190,50 @@ async function insererCourse(parsed, prix) {
   return await res.json();
 }
 
+async function insererCommissionLibre(parsed, date) {
+  const montant = Number(parsed.montant);
+
+  const body = {
+    id: generateUUID(),
+    date,
+    heure: "00:00",
+    client: parsed.note || "Commission libre",
+    company: "Limolane",
+    prise: "—",
+    depose: "—",
+    vehicule: "—",
+    prestation: "transfert",
+    prix_ttc: montant,
+    chauffeur: parsed.chauffeur || "—",
+    chauffeur_flat_rate: 0,
+    chauffeur_cost: 0,
+    profile: "commission",
+    month_key: date.slice(0, 7),
+    notes: "Commission libre",
+    is_private: false,
+    nb_heures: null,
+    total: montant,
+  };
+
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/courses`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "apikey": SUPABASE_KEY,
+      "Authorization": `Bearer ${SUPABASE_KEY}`,
+      "Prefer": "return=representation",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(err);
+  }
+
+  return await res.json();
+}
+
 // ─── Handler principal ────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
@@ -201,7 +263,7 @@ export default async function handler(req, res) {
   }
 
   if (!text || text.startsWith("/")) {
-    await sendMessage(chatId, "👋 Envoie un message comme :\n<code>14/04/2026 John Smith CDG &gt; Four Seasons Paris 19h00 / Bruno E</code>");
+    await sendMessage(chatId, "👋 Envoie une course :\n<code>14/04/2026 John Smith CDG &gt; Four Seasons Paris 19h00 / Bruno E</code>\n\nOu une commission libre :\n<code>Ajoute 20€ de commission</code>");
     return res.status(200).json({ ok: true });
   }
 
@@ -210,6 +272,28 @@ export default async function handler(req, res) {
 
     // 1. Parser le message
     const parsed = await parseMessage(text);
+
+    // Commission libre : montant ajouté directement, sans course
+    if (parsed?.type_message === "commission_libre") {
+      const montant = Number(parsed.montant);
+      if (!montant || isNaN(montant)) {
+        await sendMessage(chatId, "❌ Je n'ai pas compris le montant. Exemple :\n<code>Ajoute 20€ de commission</code>");
+        return res.status(200).json({ ok: true });
+      }
+
+      const dateLibre = parsed.date || new Date().toISOString().slice(0, 10);
+      await insererCommissionLibre(parsed, dateLibre);
+
+      await sendMessage(chatId,
+        `✅ <b>Commission libre ajoutée</b>\n\n` +
+        `📅 ${dateLibre}\n` +
+        (parsed.chauffeur ? `👨‍✈️ ${parsed.chauffeur}\n` : "") +
+        (parsed.note ? `📝 ${parsed.note}\n` : "") +
+        `\n📊 <b>Commission : ${montant}€</b>`
+      );
+      return res.status(200).json({ ok: true });
+    }
+
     if (!parsed || !parsed.date || !parsed.gamme) {
       await sendMessage(chatId, "❌ Je n'ai pas réussi à parser le message. Vérifie le format :\n<code>14/04/2026 John Smith CDG &gt; Four Seasons Paris 19h00 / Bruno E</code>");
       return res.status(200).json({ ok: true });
