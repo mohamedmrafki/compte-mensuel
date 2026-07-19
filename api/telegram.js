@@ -88,6 +88,12 @@ Règles de normalisation :
 - Année sur 2 chiffres → 20XX (ex : 26 → 2026)
 - Heure "4h00" ou "4h" → "04:00" ; "17h20" → "17:20"
 
+Supplément d'attente (dans les deux formes) :
+- "attente +30", "attente 30€", "Attente: 30" → attente = 30 (montant en EUROS ajouté au prix client)
+- Si une durée est mentionnée (ex "45 min"), mets-la dans attente_detail
+- Si l'attente n'est exprimée qu'en minutes SANS montant en euros, attente = null
+- Pas d'attente mentionnée → attente = null
+
 Réponds alors :
 {
   "type_message": "course",
@@ -99,7 +105,9 @@ Réponds alors :
   "gamme": "E ou V ou S",
   "chauffeur": "prénom du chauffeur",
   "type": "paris ou aeroport ou mad",
-  "duree_heures": null ou nombre (pour MAD uniquement)
+  "duree_heures": null ou nombre (pour MAD uniquement),
+  "attente": null ou montant en euros,
+  "attente_detail": null ou "durée/détail (ex: 45 min)"
 }
 
 Règles de détection du type :
@@ -176,6 +184,7 @@ function generateUUID() {
 async function insererCourse(parsed, prix) {
   const gammeLabel = parsed.gamme?.toUpperCase() === "V" ? "Classe V" : parsed.gamme?.toUpperCase() === "S" ? "Classe S" : "Classe E";
   const isMad = parsed.type === "mad";
+  const attente = Number(parsed.attente) || 0;
 
   const body = {
     id: generateUUID(),
@@ -196,7 +205,8 @@ async function insererCourse(parsed, prix) {
     notes: isMad ? `MAD ${parsed.duree_heures}h` : "",
     is_private: false,
     nb_heures: isMad ? parsed.duree_heures : null,
-    total: prix.prixClient,
+    supplements: attente > 0 ? [{ id: generateUUID().slice(0, 8), type: "Attente", description: parsed.attente_detail || "", amount: String(attente) }] : [],
+    total: prix.prixClient + attente,
   };
 
   const res = await fetch(`${SUPABASE_URL}/rest/v1/courses`, {
@@ -340,6 +350,7 @@ export default async function handler(req, res) {
     // 4. Confirmation
     const typeLabel = parsed.type === "aeroport" ? "✈️ Aéroport" : parsed.type === "mad" ? `⏱ MAD ${parsed.duree_heures}h` : "🗼 Paris-Paris";
     const gammeLabel = { E: "Classe E", V: "Classe V", S: "Classe S" }[parsed.gamme?.toUpperCase()] || parsed.gamme;
+    const attente = Number(parsed.attente) || 0;
 
     await sendMessage(chatId,
       `✅ <b>Commission créée</b>\n\n` +
@@ -348,9 +359,10 @@ export default async function handler(req, res) {
       `📍 ${parsed.prise}${parsed.depose ? " → " + parsed.depose : ""}\n` +
       `🚗 ${gammeLabel} — ${typeLabel}\n` +
       `👨‍✈️ ${parsed.chauffeur}\n\n` +
-      `💰 Client : <b>${prix.prixClient}€</b>\n` +
+      `💰 Client : <b>${prix.prixClient + attente}€</b>\n` +
+      (attente > 0 ? `⏱ dont attente : +${attente}€${parsed.attente_detail ? ` (${parsed.attente_detail})` : ""}\n` : "") +
       `💸 Chauffeur : ${prix.prixChauffeur}€\n` +
-      `📊 <b>Commission : ${prix.commission}€</b>`
+      `📊 <b>Commission : ${prix.commission + attente}€</b>`
     );
 
   } catch (err) {
